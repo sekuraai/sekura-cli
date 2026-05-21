@@ -1,0 +1,13 @@
+{
+  "name": "sekura",
+  "version": "0.1.0-alpha.0",
+  "description": "AI-driven security scanning that runs in your GitHub Actions.",
+  "homepage": "https://sekura.ai",
+  "license": "AGPL-3.0-or-later",
+  "mcpServers": {
+    "sekura": {
+      "command": "npx",
+      "args": ["-y", "sekura@latest", "mcp"]
+    }
+  }
+}
