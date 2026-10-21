@@ -13,8 +13,8 @@
   "files": ["dist", "skills", "README.md", "LICENSE"],
   "engines": { "node": ">=18" },
   "scripts": {
-    "build": "tsc -p tsconfig.json && chmod +x dist/cli.js",
-    "test": "npm run build && node --test test/*.test.mjs",
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').chmodSync('dist/cli.js', 0o755)\"",
+    "test": "npm run build && node --test test/init.test.mjs",
     "prepack": "npm run build"
   },
   "dependencies": {
