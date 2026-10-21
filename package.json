@@ -9,7 +9,7 @@
   "bugs": { "url": "https://github.com/sekuraai/sekura-cli/issues" },
   "author": "Sekura Inc. <hello@sekura.ai>",
   "keywords": ["sekura", "mcp", "security", "vulnerability-scanning", "claude-code", "cursor", "copilot", "codex"],
-  "bin": { "sekura": "./dist/cli.js" },
+  "bin": { "sekura": "dist/cli.js" },
   "files": ["dist", "skills", "README.md", "LICENSE"],
   "engines": { "node": ">=18" },
   "scripts": {
