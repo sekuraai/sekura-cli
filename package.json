@@ -1,0 +1,28 @@
+{
+  "name": "sekura",
+  "version": "0.1.0",
+  "description": "Connect your coding tool to Sekura in one command: npx sekura@latest init",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://sekura.ai/connect/",
+  "repository": { "type": "git", "url": "git+https://github.com/sekuraai/sekura-cli.git" },
+  "bugs": { "url": "https://github.com/sekuraai/sekura-cli/issues" },
+  "author": "Sekura Inc. <hello@sekura.ai>",
+  "keywords": ["sekura", "mcp", "security", "vulnerability-scanning", "claude-code", "cursor", "copilot", "codex"],
+  "bin": { "sekura": "./dist/cli.js" },
+  "files": ["dist", "skills", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.8.0",
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
