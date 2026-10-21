@@ -18,7 +18,9 @@ import type { Outcome } from './writers.js'
 const here = dirname(fileURLToPath(import.meta.url))
 /** The packaged skill: dist/ sits beside skills/ in the published package. */
 export const SKILL_SOURCE = join(here, '..', 'skills', SERVER_NAME, 'SKILL.md')
-export const skillText = (): string => readFileSync(SKILL_SOURCE, 'utf8')
+/** LF whatever the checkout did: a Windows clone with autocrlf would otherwise
+ *  install a skill whose every line ends in \r, and a rerun would rewrite it. */
+export const skillText = (): string => readFileSync(SKILL_SOURCE, 'utf8').replace(/\r\n/g, '\n')
 
 export function skillPaths(root: string, claude: boolean, scope: 'user' | 'project'): string[] {
   const out = [join(root, '.agents', 'skills', SERVER_NAME, 'SKILL.md')]
