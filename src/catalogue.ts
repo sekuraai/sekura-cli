@@ -32,6 +32,13 @@ export function codeUserDir(h = home()): string {
 
 const xdg = (h: string) => process.env.XDG_CONFIG_HOME || join(h, '.config')
 
+/** Goose's config directory: ~/.config/goose on macOS and Linux (Goose uses
+ *  the XDG layout on both), %APPDATA%\Block\goose\config on Windows. */
+export function gooseDir(h = home()): string {
+  if (platform() === 'win32') return join(process.env.APPDATA || join(h, 'AppData', 'Roaming'), 'Block', 'goose', 'config')
+  return join(xdg(h), 'goose')
+}
+
 /** True when `bin` is an executable on PATH. */
 export function onPath(bin: string): boolean {
   const exts = platform() === 'win32' ? ['.exe', '.cmd', '.bat', ''] : ['']
@@ -44,11 +51,15 @@ export function onPath(bin: string): boolean {
 
 /** How Sekura is written for one tool and one scope. Listed in order of
  *  preference: a command is used when its binary is on PATH, else the next
- *  target; a `link` is never applied, only shown. */
+ *  target; a `link` is never applied, only shown. A command with `get` can
+ *  be asked whether the entry is already there, so a rerun reads "already
+ *  there" instead of the tool's own "already exists" refusal. A `yaml`
+ *  target is one entry under a top-level mapping (Goose's `extensions`). */
 export type Target =
   | { kind: 'json'; path: string; key: string; entry: Record<string, unknown> }
   | { kind: 'toml'; path: string; table: string; lines: string[] }
-  | { kind: 'command'; bin: string; add: string[]; remove: string[] }
+  | { kind: 'yaml'; path: string; key: string; lines: string[] }
+  | { kind: 'command'; bin: string; add: string[]; remove: string[]; get?: string[] }
   | { kind: 'link'; href: string; note: string }
 
 export type Tool = {
@@ -71,7 +82,7 @@ export const TOOLS: Tool[] = [
     id: 'tools-claude', name: 'Claude Code',
     detect: (h) => existsSync(join(h, '.claude')) || existsSync(join(h, '.claude.json')) || onPath('claude'),
     user: (h) => [
-      { kind: 'command', bin: 'claude', add: ['mcp', 'add', '--transport', 'http', '-s', 'user', SERVER_NAME, ENDPOINT], remove: ['mcp', 'remove', '-s', 'user', SERVER_NAME] },
+      { kind: 'command', bin: 'claude', add: ['mcp', 'add', '--transport', 'http', '-s', 'user', SERVER_NAME, ENDPOINT], remove: ['mcp', 'remove', '-s', 'user', SERVER_NAME], get: ['mcp', 'get', SERVER_NAME] },
       { kind: 'json', path: join(h, '.claude.json'), key: 'mcpServers', entry: http },
     ],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.mcp.json'), key: 'mcpServers', entry: http }],
@@ -163,8 +174,13 @@ export const TOOLS: Tool[] = [
   },
   {
     id: 'tools-goose', name: 'Goose',
-    detect: (h) => existsSync(join(xdg(h), 'goose')) || onPath('goose'),
-    user: () => [{ kind: 'link', href: `${DOCS}#tools-goose`, note: 'Goose takes a goose://extension link or goose configure; the page has both.' }],
+    detect: (h) => existsSync(gooseDir(h)) || onPath('goose'),
+    // The streamable_http shape of Goose's ExtensionConfig (block/goose,
+    // crates/goose/src/agents/extension.rs; documentation/docs/guides/config-files.md).
+    user: (h) => [{ kind: 'yaml', path: join(gooseDir(h), 'config.yaml'), key: 'extensions', lines: [
+      'type: streamable_http', `name: ${SERVER_NAME}`, 'enabled: true', `uri: ${ENDPOINT}`,
+      'envs: {}', 'env_keys: []', 'headers: {}', 'timeout: 300', 'bundled: null', 'available_tools: []',
+    ] }],
     signIn: SIGN_IN,
   },
 ]

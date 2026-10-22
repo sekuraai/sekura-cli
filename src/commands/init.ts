@@ -3,7 +3,10 @@
 
 import { Command } from 'commander'
 import { checkbox, confirm, select } from '@inquirer/prompts'
-import { DOCS, ENDPOINT, TOOLS } from '../catalogue.js'
+import { realpathSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, resolve } from 'node:path'
+import { DOCS, ENDPOINT, TOOLS, home } from '../catalogue.js'
 import { applyStep, buildPlan, describeStep, detectTools, type Scope } from '../plan.js'
 import { verifyEndpoint } from '../verify.js'
 import { banner, cross, dot, say, tick } from '../ui.js'
@@ -16,6 +19,14 @@ export type InitOptions = {
   dryRun?: boolean
   cwd?: string
   verify?: boolean
+}
+
+/** The home folder (or the top of the disk) is no project: project scope
+ *  there would put AGENTS.md and .mcp.json in it for every tool to find. */
+export function isProjectDir(cwd: string): boolean {
+  const real = (p: string) => { try { return realpathSync(p) } catch { return resolve(p) } }
+  const dir = real(cwd)
+  return dir !== real(home()) && dir !== real(homedir()) && dirname(dir) !== dir
 }
 
 export async function runInit(opts: InitOptions): Promise<{ written: number; byHand: number; failed: number }> {
@@ -46,7 +57,13 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
 
   // 2. Scope and skill.
   let scope: Scope = opts.scope ?? 'user'
-  if (!opts.scope && interactive) {
+  const inProject = isProjectDir(cwd)
+  if (scope === 'project' && !inProject) {
+    say(`  ${cwd} is your home folder or the top of the disk, not a project: run sekura init --scope project inside the project, or use --scope user.`)
+    say('  Nothing was changed.')
+    return { written: 0, byHand: 0, failed: 1 }
+  }
+  if (!opts.scope && interactive && inProject) {
     scope = await select<Scope>({
       message: 'Where',
       choices: [

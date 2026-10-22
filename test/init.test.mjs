@@ -15,17 +15,18 @@ process.env.SEKURA_HOME = HOME
 process.env.HOME = HOME
 process.env.PATH = mkdtempSync(join(tmpdir(), 'sekura-empty-path-'))
 delete process.env.XDG_CONFIG_HOME
+process.env.APPDATA = join(HOME, 'AppData', 'Roaming')
 
-const { codeUserDir, ENDPOINT, TOOLS } = await import('../dist/catalogue.js')
+const { codeUserDir, gooseDir, ENDPOINT, TOOLS } = await import('../dist/catalogue.js')
 const { buildPlan, detectTools, applyStep, removeStep, stepPresent } = await import('../dist/plan.js')
-const { runInit } = await import('../dist/commands/init.js')
+const { runInit, isProjectDir } = await import('../dist/commands/init.js')
 const { runUninstall } = await import('../dist/commands/uninstall.js')
 const { GUIDANCE } = await import('../dist/skill.js')
 
 const read = (p) => readFileSync(p, 'utf8')
 const json = (p) => JSON.parse(read(p))
 
-// A machine with Claude Code (no binary), Cursor, VS Code with Cline, Codex (no binary), Kiro, Zed with comments, OpenCode.
+// A machine with Claude Code (no binary), Cursor, VS Code with Cline, Codex (no binary), Kiro, Zed with comments, OpenCode, Goose.
 mkdirSync(join(HOME, '.claude'), { recursive: true })
 writeFileSync(join(HOME, '.claude.json'), JSON.stringify({ numStartups: 3, mcpServers: { other: { command: 'x', args: [] } } }, null, 2) + '\n')
 mkdirSync(join(HOME, '.cursor'), { recursive: true })
@@ -38,10 +39,14 @@ mkdirSync(join(HOME, '.config', 'zed'), { recursive: true })
 writeFileSync(join(HOME, '.config', 'zed', 'settings.json'), '{\n  // my theme\n  "theme": "One Dark",\n}\n')
 mkdirSync(join(HOME, '.config', 'opencode'), { recursive: true })
 writeFileSync(join(HOME, '.config', 'opencode', 'opencode.json'), JSON.stringify({ $schema: 'https://opencode.ai/config.json', mcp: {} }, null, 2))
+const GOOSE = join(gooseDir(HOME), 'config.yaml')
+const GOOSE_BEFORE = 'GOOSE_PROVIDER: openai\nextensions:\n    developer:\n        bundled: true\n        enabled: true\n        name: developer\n        type: builtin\n\nGOOSE_MODEL: gpt-5\n'
+mkdirSync(gooseDir(HOME), { recursive: true })
+writeFileSync(GOOSE, GOOSE_BEFORE)
 
 test('detects the tools whose directories exist and nothing else', () => {
   const ids = detectTools(PROJECT).map((t) => t.id).sort()
-  assert.deepEqual(ids, ['tools-claude', 'tools-cline', 'tools-codex', 'tools-copilot', 'tools-cursor', 'tools-kiro', 'tools-opencode', 'tools-zed'])
+  assert.deepEqual(ids, ['tools-claude', 'tools-cline', 'tools-codex', 'tools-copilot', 'tools-cursor', 'tools-goose', 'tools-kiro', 'tools-opencode', 'tools-zed'])
 })
 
 test('every tool has a user target, and only commands depend on PATH', () => {
@@ -75,6 +80,11 @@ test('init --yes writes each tool its own shape and leaves the rest of each file
 
   assert.equal(read(join(HOME, '.config', 'zed', 'settings.json')), '{\n  // my theme\n  "theme": "One Dark",\n}\n', 'a file with comments is never rewritten')
 
+  const goose = read(GOOSE)
+  assert.ok(goose.startsWith('GOOSE_PROVIDER: openai\nextensions:\n    developer:\n'), goose)
+  assert.ok(goose.includes(`        bundled: true\n        enabled: true\n        name: developer\n        type: builtin\n    sekura:\n        type: streamable_http\n        name: sekura\n        enabled: true\n        uri: ${ENDPOINT}\n`), 'the entry sits under extensions at the file\'s own indent')
+  assert.ok(goose.endsWith('\n\nGOOSE_MODEL: gpt-5\n'), 'what follows extensions is untouched')
+
   assert.ok(existsSync(join(HOME, '.agents', 'skills', 'sekura', 'SKILL.md')), 'the skill in the agents location')
   assert.ok(existsSync(join(HOME, '.claude', 'skills', 'sekura', 'SKILL.md')), 'and for Claude Code')
   assert.match(read(join(HOME, '.agents', 'skills', 'sekura', 'SKILL.md')), /^---\nname: sekura\n/)
@@ -82,10 +92,10 @@ test('init --yes writes each tool its own shape and leaves the rest of each file
 })
 
 test('a rerun changes no byte', async () => {
-  const before = ['.claude.json', '.cursor/mcp.json', '.codex/config.toml', '.kiro/settings/mcp.json', '.config/opencode/opencode.json'].map((p) => read(join(HOME, p)))
+  const before = ['.claude.json', '.cursor/mcp.json', '.codex/config.toml', '.kiro/settings/mcp.json', '.config/opencode/opencode.json'].map((p) => read(join(HOME, p))).concat(read(GOOSE))
   const r = await runInit({ yes: true, scope: 'user', cwd: PROJECT, verify: false })
   assert.equal(r.written, 0)
-  const after = ['.claude.json', '.cursor/mcp.json', '.codex/config.toml', '.kiro/settings/mcp.json', '.config/opencode/opencode.json'].map((p) => read(join(HOME, p)))
+  const after = ['.claude.json', '.cursor/mcp.json', '.codex/config.toml', '.kiro/settings/mcp.json', '.config/opencode/opencode.json'].map((p) => read(join(HOME, p))).concat(read(GOOSE))
   assert.deepEqual(after, before)
 })
 
@@ -95,6 +105,24 @@ test('a changed entry is corrected on rerun', async () => {
   const r = await runInit({ yes: true, scope: 'user', tools: 'kiro', skill: false, cwd: PROJECT, verify: false })
   assert.equal(r.written, 1)
   assert.deepEqual(json(p).mcpServers.sekura, { url: ENDPOINT })
+})
+
+test('a Goose entry Goose rewrote in its own order and quoting is still there', async () => {
+  const mine = read(GOOSE)
+  writeFileSync(GOOSE, `extensions:\n  sekura:\n    available_tools: []\n    bundled: null\n    description: ''\n    enabled: true\n    env_keys: []\n    envs: {}\n    headers: {}\n    name: sekura\n    timeout: 300\n    type: streamable_http\n    uri: "${ENDPOINT}"\n`)
+  const r = await runInit({ yes: true, scope: 'user', tools: 'goose', skill: false, cwd: PROJECT, verify: false })
+  assert.equal(r.written, 0)
+  writeFileSync(GOOSE, mine)
+})
+
+test('init refuses project scope in the home folder', async () => {
+  assert.equal(isProjectDir(HOME), false)
+  assert.equal(isProjectDir(PROJECT), true)
+  const r = await runInit({ yes: true, scope: 'project', cwd: HOME, verify: false })
+  assert.equal(r.failed, 1)
+  assert.equal(r.written, 0)
+  assert.ok(!existsSync(join(HOME, 'AGENTS.md')))
+  assert.ok(!existsSync(join(HOME, '.mcp.json')))
 })
 
 test('status reads the same plan and sees every entry present', () => {
@@ -134,6 +162,7 @@ test('uninstall removes only the sekura entries, the skill and the block', async
   assert.equal(read(join(HOME, '.codex', 'config.toml')), 'model = "gpt-5"\n\n[mcp_servers.other]\nurl = "https://example.test/other"\n')
   assert.ok(!existsSync(join(HOME, '.agents', 'skills', 'sekura')))
   assert.ok(!existsSync(join(HOME, '.claude', 'skills', 'sekura')))
+  assert.equal(read(GOOSE), GOOSE_BEFORE, 'Goose\'s file is as it was')
 
   const projectFailed = await runUninstall({ yes: true, scope: 'project', cwd: PROJECT })
   assert.equal(projectFailed, 0)
