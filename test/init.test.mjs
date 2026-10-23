@@ -111,6 +111,8 @@ test('a changed entry is corrected on rerun', async () => {
 
 test('Cline is found by its extension folder or ~/.cline, and its file follows Cline\'s overrides', () => {
   const h = mkdtempSync(join(tmpdir(), 'sekura-cline-'))
+  const appData = process.env.APPDATA
+  process.env.APPDATA = join(h, 'AppData', 'Roaming') // on Windows, VS Code's storage follows APPDATA, not h
   const cline = toolById('tools-cline')
   assert.equal(cline.detect(h, PROJECT), false)
   mkdirSync(join(h, '.vscode', 'extensions', 'saoudrizwan.claude-dev-4.1.25'), { recursive: true })
@@ -126,6 +128,7 @@ test('Cline is found by its extension folder or ~/.cline, and its file follows C
   process.env.CLINE_MCP_SETTINGS_PATH = join(h, 'mcp.json')
   assert.equal(clineSettingsPath(h), join(h, 'mcp.json'))
   for (const v of ['CLINE_MCP_SETTINGS_PATH', 'CLINE_DATA_DIR', 'CLINE_DIR']) delete process.env[v]
+  process.env.APPDATA = appData
   rmSync(h, { recursive: true, force: true })
 })
 
