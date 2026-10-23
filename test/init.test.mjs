@@ -15,9 +15,10 @@ process.env.SEKURA_HOME = HOME
 process.env.HOME = HOME
 process.env.PATH = mkdtempSync(join(tmpdir(), 'sekura-empty-path-'))
 delete process.env.XDG_CONFIG_HOME
+for (const v of ['CLINE_MCP_SETTINGS_PATH', 'CLINE_DATA_DIR', 'CLINE_DIR']) delete process.env[v]
 process.env.APPDATA = join(HOME, 'AppData', 'Roaming')
 
-const { codeUserDir, gooseDir, ENDPOINT, TOOLS } = await import('../dist/catalogue.js')
+const { clineSettingsPath, codeUserDir, gooseDir, toolById, ENDPOINT, TOOLS } = await import('../dist/catalogue.js')
 const { buildPlan, detectTools, applyStep, removeStep, stepPresent } = await import('../dist/plan.js')
 const { runInit, isProjectDir } = await import('../dist/commands/init.js')
 const { runUninstall } = await import('../dist/commands/uninstall.js')
@@ -69,7 +70,8 @@ test('init --yes writes each tool its own shape and leaves the rest of each file
   assert.ok(cursor.includes('\n    "mcpServers"'), 'the file keeps its four-space indent')
 
   assert.deepEqual(json(join(codeUserDir(HOME), 'mcp.json')).servers.sekura, { type: 'http', url: ENDPOINT })
-  assert.deepEqual(json(join(codeUserDir(HOME), 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')).mcpServers.sekura, { type: 'streamableHttp', url: ENDPOINT })
+  assert.deepEqual(json(join(HOME, '.cline', 'data', 'settings', 'cline_mcp_settings.json')).mcpServers.sekura, { type: 'streamableHttp', url: ENDPOINT }, 'Cline v4 reads ~/.cline, not global storage')
+  assert.ok(!existsSync(join(codeUserDir(HOME), 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json')), 'the legacy file is left alone')
   assert.deepEqual(json(join(HOME, '.kiro', 'settings', 'mcp.json')).mcpServers.sekura, { url: ENDPOINT })
   assert.deepEqual(json(join(HOME, '.config', 'opencode', 'opencode.json')).mcp.sekura, { type: 'remote', url: ENDPOINT })
   assert.equal(json(join(HOME, '.config', 'opencode', 'opencode.json')).$schema, 'https://opencode.ai/config.json')
@@ -105,6 +107,26 @@ test('a changed entry is corrected on rerun', async () => {
   const r = await runInit({ yes: true, scope: 'user', tools: 'kiro', skill: false, cwd: PROJECT, verify: false })
   assert.equal(r.written, 1)
   assert.deepEqual(json(p).mcpServers.sekura, { url: ENDPOINT })
+})
+
+test('Cline is found by its extension folder or ~/.cline, and its file follows Cline\'s overrides', () => {
+  const h = mkdtempSync(join(tmpdir(), 'sekura-cline-'))
+  const cline = toolById('tools-cline')
+  assert.equal(cline.detect(h, PROJECT), false)
+  mkdirSync(join(h, '.vscode', 'extensions', 'saoudrizwan.claude-dev-4.1.25'), { recursive: true })
+  assert.equal(cline.detect(h, PROJECT), true, 'a fresh install, before it has any global storage')
+  rmSync(join(h, '.vscode'), { recursive: true })
+  mkdirSync(join(h, '.cline'))
+  assert.equal(cline.detect(h, PROJECT), true, 'the Cline CLI, or the extension after first run')
+  assert.equal(clineSettingsPath(h), join(h, '.cline', 'data', 'settings', 'cline_mcp_settings.json'))
+  process.env.CLINE_DIR = join(h, 'c')
+  assert.equal(clineSettingsPath(h), join(h, 'c', 'data', 'settings', 'cline_mcp_settings.json'))
+  process.env.CLINE_DATA_DIR = join(h, 'd')
+  assert.equal(clineSettingsPath(h), join(h, 'd', 'settings', 'cline_mcp_settings.json'))
+  process.env.CLINE_MCP_SETTINGS_PATH = join(h, 'mcp.json')
+  assert.equal(clineSettingsPath(h), join(h, 'mcp.json'))
+  for (const v of ['CLINE_MCP_SETTINGS_PATH', 'CLINE_DATA_DIR', 'CLINE_DIR']) delete process.env[v]
+  rmSync(h, { recursive: true, force: true })
 })
 
 test('a Goose entry Goose rewrote in its own order and quoting is still there', async () => {

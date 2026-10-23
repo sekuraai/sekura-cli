@@ -10,7 +10,7 @@
 // PATH. Presence decides what the wizard offers, never what it writes: the
 // person chooses, and a tool they did not choose is not touched.
 
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { homedir, platform } from 'node:os'
 import { join, delimiter } from 'node:path'
 
@@ -21,7 +21,7 @@ export const DOCS = 'https://sekura.ai/connect/'
 /** The home directory, overridable for tests. */
 export const home = (): string => process.env.SEKURA_HOME || homedir()
 
-/** VS Code's user directory, where Copilot's `mcp.json` and Cline's settings live. */
+/** VS Code's user directory, where Copilot's `mcp.json` lives. */
 export function codeUserDir(h = home()): string {
   switch (platform()) {
     case 'darwin': return join(h, 'Library', 'Application Support', 'Code', 'User')
@@ -31,6 +31,23 @@ export function codeUserDir(h = home()): string {
 }
 
 const xdg = (h: string) => process.env.XDG_CONFIG_HOME || join(h, '.config')
+
+/** Cline's MCP settings. Since v4 the extension and the Cline CLI share one
+ *  file under ~/.cline/data (cline/cline, sdk/packages/shared/src/storage/
+ *  paths.ts, resolveMcpSettingsPath), with the same three overrides. The
+ *  file in VS Code's global storage is only migrated from, once per source,
+ *  so an entry written there after that is never read. */
+export function clineSettingsPath(h = home()): string {
+  const explicit = process.env.CLINE_MCP_SETTINGS_PATH?.trim()
+  if (explicit) return explicit
+  const data = process.env.CLINE_DATA_DIR?.trim() || join(process.env.CLINE_DIR?.trim() || join(h, '.cline'), 'data')
+  return join(data, 'settings', 'cline_mcp_settings.json')
+}
+
+/** True when a VS Code extension is installed: its folder is `<publisher.name>-<version>`. */
+function hasExtension(h: string, id: string): boolean {
+  try { return readdirSync(join(h, '.vscode', 'extensions')).some((d) => d.toLowerCase().startsWith(`${id}-`)) } catch { return false }
+}
 
 /** Goose's config directory: ~/.config/goose on macOS and Linux (Goose uses
  *  the XDG layout on both), %APPDATA%\Block\goose\config on Windows. */
@@ -120,8 +137,10 @@ export const TOOLS: Tool[] = [
   },
   {
     id: 'tools-cline', name: 'Cline',
-    detect: (h) => existsSync(join(codeUserDir(h), 'globalStorage', 'saoudrizwan.claude-dev')),
-    user: (h) => [{ kind: 'json', path: join(codeUserDir(h), 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'), key: 'mcpServers', entry: { type: 'streamableHttp', url: ENDPOINT } }],
+    // A fresh v4 install has no global-storage folder until the extension
+    // writes one, so the installed extension and ~/.cline count too.
+    detect: (h) => existsSync(join(h, '.cline')) || hasExtension(h, 'saoudrizwan.claude-dev') || existsSync(join(codeUserDir(h), 'globalStorage', 'saoudrizwan.claude-dev')),
+    user: (h) => [{ kind: 'json', path: clineSettingsPath(h), key: 'mcpServers', entry: { type: 'streamableHttp', url: ENDPOINT } }],
     signIn: SIGN_IN,
   },
   {

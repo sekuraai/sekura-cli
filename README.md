@@ -36,13 +36,13 @@ npx sekura@latest uninstall             # remove the entries, the skill and the 
 | GitHub Copilot (VS Code) | the VS Code user `mcp.json` → `servers.sekura` | `.mcp.json` |
 | OpenAI Codex | `codex mcp add sekura --url …`, or `~/.codex/config.toml` → `[mcp_servers.sekura]` | — |
 | Kiro | `~/.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` |
-| Cline | `cline_mcp_settings.json` in VS Code's global storage | — |
+| Cline | `~/.cline/data/settings/cline_mcp_settings.json` (shared by the extension, v4 and later, and the Cline CLI) | — |
 | Zed | `~/.config/zed/settings.json` → `context_servers.sekura` (shown by hand when the file has comments) | — |
 | Antigravity | `~/.gemini/config/mcp_config.json` → `serverUrl` | `.agents/mcp_config.json` |
 | OpenCode | `~/.config/opencode/opencode.json` → `mcp.sekura` | `opencode.json` |
 | JetBrains Junie | — | `.junie/mcp/mcp.json` |
 | Factory Droid, Tabnine, Devin | the tool's own `mcp add` command | — |
-| Goose | a link to the page | — |
+| Goose | `~/.config/goose/config.yaml` → `extensions.sekura` (`streamable_http`) | — |
 
 The skill goes to `~/.agents/skills/sekura/SKILL.md` and, when Claude Code is present, `~/.claude/skills/sekura/SKILL.md`; in project scope to the same paths under the project, plus a section between `<!-- sekura:start -->` and `<!-- sekura:end -->` in `AGENTS.md` (and `CLAUDE.md` if one exists). Reruns replace only what sits between the markers.
 
