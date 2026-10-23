@@ -6,25 +6,36 @@ Connect your coding tool to [Sekura](https://sekura.ai) in one command.
 npx sekura@latest init
 ```
 
-Sekura is an AI red team as a service: it scans a GitHub repository you have granted it, exploits what it finds to prove each finding, and delivers a report. Its MCP server is remote, at `https://sekura.ai/mcp`, so this package runs no server and holds no credential. It writes that address into the coding tools on your machine, installs a skill that teaches the agent the quote-then-confirm rule, and gets out of the way.
+Sekura is an AI red team as a service: it scans a GitHub repository you have granted it, exploits what it finds to prove each finding, and delivers a report. Its MCP server is remote, at `https://sekura.ai/mcp`, so this package runs no server. It writes that address into the coding tools on your machine and installs a skill that teaches the agent the quote-then-confirm rule. Then it finishes getting started right in the terminal: it signs you in once, helps you install the GitHub App, and lets you pick a repository. When you open your coding tool, Sekura already works.
 
 ## What `init` does
 
 1. **Detects** the tools on this machine: Claude Code, Cursor, GitHub Copilot in VS Code, OpenAI Codex, Kiro, Cline, Zed, Antigravity, OpenCode, JetBrains Junie, Factory Droid, Tabnine, Devin and Goose.
 2. **Asks** which to connect, and whether for every project (your user configuration) or this project only.
-3. **Shows the plan** before anything is written: each file and the exact entry, or the tool's own command.
-4. **Applies** it, one step at a time, and says what each did. Files that are not plain JSON (Zed's `settings.json` with comments, for one) are never rewritten; you are shown the lines to add instead.
-5. **Checks** that the Sekura server answers, and tells you how to sign in from each tool.
+3. **Signs you in** once, in your browser. You sign in with GitHub on sekura.ai and approve, and the CLI receives a Sekura key and gives it to each tool, so none of them asks you to sign in. Codex and Devin can't take a key in their configuration, so the CLI runs their own `mcp login` for you; since your browser is already signed in, that's one click.
+4. **Shows the plan** before anything is written: each file and the exact entry (with the key shown as `sek_live_…abcd`), or the tool's own command.
+5. **Applies** it, one step at a time, and says what each did. Files that are not plain JSON (Zed's `settings.json` with comments, for one) are never rewritten; you are shown the lines to add instead.
+6. **Checks** that the Sekura server answers.
+7. **Gets you to a first scan**:
+   - It says what your account still needs (the Terms, or email verification).
+   - It offers to install the Sekura GitHub App when nothing can be scanned yet, or when the repository in the current folder isn't covered.
+   - It lets you pick a repository, with the current folder's first.
+   - If your free first scan is still available, it opens sekura.ai so you can start it there.
+8. **Tells you what to type** in each tool, such as `/sekura scan owner/repo` in Claude Code (`/sekura help` lists every command).
 
-Signing in happens in the tool: the first time it uses Sekura, a sekura.ai page opens in your browser. Sign in with GitHub and approve. Nothing to copy.
+Skip the sign-in with `--no-login`; each tool then opens a sekura.ai sign-in page the first time it uses Sekura. Project scope never writes the key, because project files get committed.
 
 ```bash
 npx sekura@latest init --yes            # every detected tool, user scope, with the skill, no questions
 npx sekura@latest init --dry-run        # show the plan and change nothing
 npx sekura@latest init --scope project  # this project only: .mcp.json, .cursor/mcp.json, AGENTS.md …
 npx sekura@latest init --tools claude,cursor --no-skill
-npx sekura@latest status                # what is connected
-npx sekura@latest uninstall             # remove the entries, the skill and the guidance block
+npx sekura@latest init --no-login       # no sign-in here; each tool signs in on first use
+npx sekura@latest login                 # sign in again, give connected tools the key, pick a repository
+npx sekura@latest status                # what is connected, and who is signed in
+npx sekura@latest logout                # forget the saved key
+npx sekura@latest uninstall             # remove the entries, the skill, the guidance block and the saved key
+SEKURA_API_KEY=sek_live_… npx sekura@latest init --yes   # unattended, with a key from Settings
 ```
 
 ## What it writes
@@ -49,8 +60,11 @@ The skill goes to `~/.agents/skills/sekura/SKILL.md` and, when Claude Code is pr
 ## What stays untouched
 
 - Every other server, setting and file. The installer sets one key, `sekura`, and reads nothing else.
-- Your source code. Nothing is read, uploaded or committed.
-- Your credentials. There is no login step and no token on disk; the sign-in is the tool's own OAuth flow with sekura.ai.
+- Your source code isn't read or uploaded by this installer.
+
+## Your key
+
+Signing in creates one Sekura key, named "Sekura CLI (your computer's name)". You can see it and revoke it at [sekura.ai/app/settings](https://sekura.ai/app/settings) → Agents and API keys. The CLI saves it in `~/.config/sekura/credentials.json`, readable by you only, and writes it as an `Authorization: Bearer` header into each tool's user configuration. `sekura uninstall` removes both, and `sekura logout` removes the saved copy. Revoking the key in Settings ends it everywhere; run `sekura login` to get a new one.
 
 Review before running: the source is this repository, the package is [`sekura` on npm](https://www.npmjs.com/package/sekura), and `--dry-run` prints every write the wizard would make.
 

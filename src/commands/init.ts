@@ -1,14 +1,17 @@
-// `sekura init`: detect, choose, review, apply, verify. Under a minute, and
-// nothing is written before the review is shown and (unless --yes) agreed.
+// `sekura init`: detect, choose, sign in, review, apply, verify, then the
+// rest of getting started (the GitHub App, a repository, the free scan) so
+// none of it is left for the coding tool. Nothing is written before the
+// review is shown and (unless --yes) agreed.
 
 import { Command } from 'commander'
 import { checkbox, confirm, select } from '@inquirer/prompts'
 import { realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, resolve } from 'node:path'
-import { DOCS, ENDPOINT, TOOLS, home } from '../catalogue.js'
+import { DOCS, ENDPOINT, TOOLS, carriesKey, home } from '../catalogue.js'
 import { applyStep, buildPlan, describeStep, detectTools, type Scope } from '../plan.js'
 import { verifyEndpoint } from '../verify.js'
+import { checkAccount, howToScan, obtainKey, offerFreeScan, pickRepository, runToolLogins, type Session } from '../guide.js'
 import { banner, cross, dot, say, tick } from '../ui.js'
 
 export type InitOptions = {
@@ -19,6 +22,8 @@ export type InitOptions = {
   dryRun?: boolean
   cwd?: string
   verify?: boolean
+  /** false: no sign-in here; the tools sign in on their own. */
+  login?: boolean
 }
 
 /** The home folder (or the top of the disk) is no project: project scope
@@ -77,8 +82,17 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
     skill = await confirm({ message: 'Also install the sekura skill, which teaches the agent the quote-then-confirm rule?', default: true })
   }
 
-  // 3. The plan, shown before anything happens.
-  const plan = buildPlan({ tools: chosen, scope, skill, cwd })
+  // 3. Sign in once, here, so the key goes into each tool and none of them
+  // asks. Project files never carry it (they are committed), so project
+  // scope skips this. A dry run uses a key it already has, never a browser.
+  let session: Session | null = null
+  if (opts.login !== false && scope === 'user') {
+    say()
+    session = await obtainKey({ interactive: interactive && !opts.dryRun })
+  }
+
+  // 4. The plan, shown before anything happens.
+  const plan = buildPlan({ tools: chosen, scope, skill, cwd, key: session?.key })
   say()
   say(opts.dryRun ? '  Dry run. This would:' : '  This will:')
   for (const s of plan.steps) say(`${dot} ${describeStep(s, !!opts.dryRun)}`)
@@ -91,9 +105,9 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
     return { written: 0, byHand: 0, failed: 0 }
   }
 
-  // 4. Apply, one step at a time, saying what each did.
+  // 5. Apply, one step at a time, saying what each did.
   let written = 0, byHand = 0, failed = 0
-  const signIns = new Map<string, string>()
+  const signIns = new Map<string, string | null>()
   for (const s of plan.steps) {
     const r = applyStep(s)
     switch (r.status) {
@@ -103,20 +117,40 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
       case 'by-hand': byHand++; say(`${cross} ${r.where}: ${r.why}`); if (r.snippet) say(r.snippet.split('\n').map((l) => '      ' + l).join('\n')); break
       case 'failed': failed++; say(`${cross} ${r.where}: ${r.why}`); break
     }
-    if (s.kind === 'tool' && (r.status === 'written' || r.status === 'ran' || r.status === 'unchanged')) signIns.set(s.tool.name, s.tool.signIn)
+    if (s.kind === 'tool' && (r.status === 'written' || r.status === 'ran' || r.status === 'unchanged')) signIns.set(s.tool.name, carriesKey(s.target) ? null : s.tool.signIn)
   }
+  // Tools whose entry cannot carry the key sign in with their own command,
+  // now, while the browser is signed in to sekura.ai.
+  if (session) for (const name of await runToolLogins(plan.steps.filter((s) => s.kind === 'tool' && signIns.has(s.tool.name)), interactive)) signIns.set(name, null)
 
-  // 5. Verify the address, and say what comes next.
+  // 6. Verify the address.
   if (opts.verify !== false) {
     const v = await verifyEndpoint(ENDPOINT)
     say(`${v.ok ? tick : cross} ${v.detail}`)
   }
+
+  // 7. The account, a repository and the free scan, with the key.
+  let repo: string | null = null
+  if (session && signIns.size) {
+    say()
+    await checkAccount(session, interactive)
+    repo = await pickRepository(session, cwd, interactive)
+    await offerFreeScan(session, repo, interactive)
+  }
+
+  // 8. What is left, per tool.
   say()
   if (signIns.size) {
-    say('  Next, sign in once per tool:')
-    for (const [name, how] of signIns) say(`${dot} ${name}: ${how}`)
+    const ready = [...signIns].filter(([, how]) => how === null).map(([name]) => name)
+    const pending = [...signIns].filter(([, how]) => how !== null)
+    if (ready.length) say(`${tick} Ready, no sign-in needed: ${ready.join(', ')}`)
+    if (pending.length) {
+      say('  Sign in once per tool:')
+      for (const [name, how] of pending) say(`${dot} ${name}: ${how}`)
+    }
     say()
-    say('  Then ask it which of your repositories Sekura can scan, and for a quote to scan one.')
+    howToScan([...signIns.keys()], repo)
+    say()
   }
   say(`  Documentation and every other tool: ${DOCS}`)
   say()
@@ -125,12 +159,13 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
 
 export const initCommand = new Command('init')
   .description('Connect the coding tools on this machine to Sekura, and install the sekura skill.')
-  .option('-y, --yes', 'apply without asking; every detected tool, user scope, with the skill')
+  .option('-y, --yes', 'apply without asking; every detected tool, user scope, with the skill, and the key in SEKURA_API_KEY or saved by sekura login')
   .option('--no-skill', 'the MCP server only: no skill, no guidance block')
   .option('--scope <scope>', 'user (every project) or project (this directory)', (v) => { if (v !== 'user' && v !== 'project') throw new Error('--scope is user or project'); return v })
   .option('--tools <ids>', `only these, comma-separated: ${TOOLS.map((t) => t.id.replace('tools-', '')).join(', ')}`)
   .option('--dry-run', 'show the plan and change nothing')
   .option('--no-verify', 'do not check that the Sekura server answers')
+  .option('--no-login', 'do not sign in here; each tool signs in on first use')
   .action(async (opts: InitOptions) => {
     const r = await runInit(opts)
     process.exitCode = r.failed ? 1 : 0

@@ -22,7 +22,9 @@ export function detectTools(cwd = process.cwd()): Tool[] {
   return TOOLS.filter((t) => t.detect(h, cwd))
 }
 
-export function buildPlan(opts: { tools: string[]; scope: Scope; skill: boolean; cwd?: string }): Plan {
+/** `key`, when given, is written into each user-scope entry that can carry
+ *  one (catalogue.ts); project scope never carries it. */
+export function buildPlan(opts: { tools: string[]; scope: Scope; skill: boolean; cwd?: string; key?: string | null }): Plan {
   const cwd = opts.cwd ?? process.cwd()
   const root = opts.scope === 'user' ? home() : cwd
   const steps: Step[] = []
@@ -30,7 +32,7 @@ export function buildPlan(opts: { tools: string[]; scope: Scope; skill: boolean;
   for (const id of opts.tools) {
     const tool = toolById(id)
     if (!tool) throw new Error(`no tool named ${id}; one of ${TOOLS.map((t) => t.id).join(', ')}`)
-    const targets = opts.scope === 'user' ? tool.user(home()) : tool.project?.(cwd)
+    const targets = opts.scope === 'user' ? tool.user(home(), opts.key ?? undefined) : tool.project?.(cwd)
     if (!targets) { skipped.push({ tool, why: 'has no project-level configuration; run with --scope user' }); continue }
     const target = pickTarget(targets)
     if (!target) { skipped.push({ tool, why: 'its command is not on PATH' }); continue }

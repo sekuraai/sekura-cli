@@ -16,16 +16,27 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { ENDPOINT, SERVER_NAME, type Target } from './catalogue.js'
+import { redactAll } from './auth.js'
 
 export type Outcome =
   | { status: 'written' | 'unchanged' | 'removed' | 'absent' | 'ran'; where: string }
   | { status: 'by-hand'; where: string; why: string; snippet: string }
   | { status: 'failed'; where: string; why: string }
 
-const describeJson = (t: Extract<Target, { kind: 'json' }>) => JSON.stringify({ [t.key]: { [SERVER_NAME]: t.entry } }, null, 2)
+// What is shown never carries a key: the review, the lines to add by hand
+// and a failed command all print it as sek_live_…abcd. Lines to add by hand
+// say where the whole key is kept instead.
+const describeJson = (t: Extract<Target, { kind: 'json' }>) => redactAll(JSON.stringify({ [t.key]: { [SERVER_NAME]: t.entry } }, null, 2))
+
+/** The key a target sends, if any. */
+const keyOf = (t: Target): string | null => /Bearer (sek_[a-z]+_[A-Za-z0-9]+)/.exec(JSON.stringify(t))?.[1] ?? null
 
 /** What applying the target would do, for the review before any write. */
 export function describe(t: Target, dryRun = false): string {
+  return redactAll(describeRaw(t, dryRun))
+}
+
+function describeRaw(t: Target, dryRun: boolean): string {
   const verb = dryRun ? 'would ' : ''
   switch (t.kind) {
     case 'json': return `${verb}write ${t.path}: ${t.key}.${SERVER_NAME} = ${JSON.stringify(t.entry)}`
@@ -177,7 +188,10 @@ function yamlFields(lines: string[]): Record<string, string> {
 function yamlOk(t: YamlTarget, entry: string[]): boolean {
   const f = yamlFields(entry)
   const want = yamlFields(t.lines)
-  return f.type === want.type && f.uri === ENDPOINT && f.enabled === 'true'
+  // Goose may rewrite the header mapping in its own layout, so a key is
+  // looked for in the entry's text, not in one field's spelling.
+  const key = keyOf(t)
+  return f.type === want.type && f.uri === ENDPOINT && f.enabled === 'true' && (!key || entry.join('\n').includes(key))
 }
 
 const splitLines = (text: string) => text.replace(/\n$/, '').split('\n')
@@ -185,12 +199,12 @@ const splitLines = (text: string) => text.replace(/\n$/, '').split('\n')
 export function applyYaml(t: YamlTarget): Outcome {
   const text = existsSync(t.path) ? readFileSync(t.path, 'utf8') : ''
   if (/\t/.test(text.split('\n').filter((l) => /^\s/.test(l)).join(''))) {
-    return { status: 'by-hand', where: t.path, why: 'it is indented with tabs, which this installer will not rewrite', snippet: `${t.key}:\n${yamlBlock(t, '  ')}` }
+    return { status: 'by-hand', where: t.path, why: 'it is indented with tabs, which this installer will not rewrite', snippet: redactAll(`${t.key}:\n${yamlBlock(t, '  ')}`) }
   }
   const lines = text ? splitLines(text) : []
   const at = yamlLayout(lines, t.key)
   if ('inline' in at) {
-    return { status: 'by-hand', where: t.path, why: `its ${t.key} is written on one line, which this installer will not rewrite`, snippet: `${t.key}:\n${yamlBlock(t, '  ')}` }
+    return { status: 'by-hand', where: t.path, why: `its ${t.key} is written on one line, which this installer will not rewrite`, snippet: redactAll(`${t.key}:\n${yamlBlock(t, '  ')}`) }
   }
   let out: string[]
   if ('missing' in at) {
@@ -237,18 +251,21 @@ function spawn(bin: string, args: string[]) {
 
 export function runCommand(bin: string, args: string[]): Outcome {
   const r = spawn(bin, args)
-  const where = `${bin} ${args.join(' ')}`
+  const where = redactAll(`${bin} ${args.join(' ')}`)
   if (r.error) return { status: 'failed', where, why: r.error.message }
-  if (r.status !== 0) return { status: 'failed', where, why: (r.stderr || r.stdout || `exit ${r.status}`).trim().split('\n').slice(-3).join(' ') }
+  if (r.status !== 0) return { status: 'failed', where, why: redactAll((r.stderr || r.stdout || `exit ${r.status}`).trim().split('\n').slice(-3).join(' ')) }
   return { status: 'ran', where }
 }
 
-/** Whether the tool's own command lists our entry at our address. */
+/** Whether the tool's own command lists our entry at our address, and with
+ *  our key when the entry carries one. A tool that does not print its
+ *  headers reads as not having it, and the entry is written again. */
 function commandHas(t: Extract<Target, { kind: 'command' }>): boolean | 'unknown' {
   if (!t.get) return 'unknown'
   const r = spawn(t.bin, t.get)
   if (r.error) return 'unknown'
-  return r.status === 0 && `${r.stdout}`.includes(ENDPOINT)
+  const key = keyOf(t)
+  return r.status === 0 && `${r.stdout}`.includes(ENDPOINT) && (!key || `${r.stdout}`.includes(key))
 }
 
 /** Adds the entry. A tool that refuses because the name is taken is asked

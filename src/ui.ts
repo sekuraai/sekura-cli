@@ -12,5 +12,6 @@ export function banner(): void {
   say()
   say('  Sekura — connect your coding tool')
   say('  Every scan is quoted first and started only after you agree.')
+  say('  Sign in once here, and your tools will not ask again.')
   say()
 }

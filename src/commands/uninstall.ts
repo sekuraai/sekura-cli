@@ -7,9 +7,10 @@
 import { Command } from 'commander'
 import { confirm } from '@inquirer/prompts'
 import { buildPlan, describeStep, detectTools, removeStep, type Scope } from '../plan.js'
+import { credentialsPath, forgetKey } from '../auth.js'
 import { cross, dot, say, tick } from '../ui.js'
 
-export async function runUninstall(opts: { yes?: boolean; keepSkill?: boolean; scope?: Scope; cwd?: string }): Promise<number> {
+export async function runUninstall(opts: { yes?: boolean; keepSkill?: boolean; keepLogin?: boolean; scope?: Scope; cwd?: string }): Promise<number> {
   const cwd = opts.cwd ?? process.cwd()
   const scope = opts.scope ?? 'user'
   const interactive = !opts.yes && process.stdin.isTTY && process.stderr.isTTY
@@ -17,6 +18,7 @@ export async function runUninstall(opts: { yes?: boolean; keepSkill?: boolean; s
   say()
   say('  This will remove Sekura from:')
   for (const s of plan.steps) say(`${dot} ${describeStep(s).split(':')[0]}`)
+  if (!opts.keepLogin) say(`${dot} the saved key, ${credentialsPath()}`)
   say('  and change nothing else.')
   say()
   if (interactive && !(await confirm({ message: 'Remove?', default: false }))) { say('  Nothing was changed.'); return 0 }
@@ -30,6 +32,7 @@ export async function runUninstall(opts: { yes?: boolean; keepSkill?: boolean; s
     else if (r.status === 'by-hand') say(`${dot} ${r.where}: ${r.why}; ${r.snippet} by hand if it is there`)
     else { failed++; say(`${cross} ${r.where}: ${'why' in r ? r.why : r.status}`) }
   }
+  if (!opts.keepLogin && forgetKey()) say(`${tick} ${credentialsPath()}`)
   say()
   say('  To end the connection on Sekura\'s side too: https://sekura.ai/app/settings → Agents and API keys.')
   say()
@@ -40,7 +43,8 @@ export const uninstallCommand = new Command('uninstall')
   .description('Remove Sekura from every tool on this machine, and the skill.')
   .option('-y, --yes', 'remove without asking')
   .option('--keep-skill', 'leave the skill and the guidance block in place')
+  .option('--keep-login', 'leave the saved Sekura key in place')
   .option('--scope <scope>', 'user or project', 'user')
-  .action(async (opts: { yes?: boolean; keepSkill?: boolean; scope: Scope }) => {
+  .action(async (opts: { yes?: boolean; keepSkill?: boolean; keepLogin?: boolean; scope: Scope }) => {
     process.exitCode = (await runUninstall(opts)) ? 1 : 0
   })

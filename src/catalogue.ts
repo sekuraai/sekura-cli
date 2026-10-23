@@ -84,23 +84,34 @@ export type Tool = {
   name: string
   /** Present on this machine. */
   detect: (h: string, cwd: string) => boolean
-  user: (h: string) => Target[]
+  /** The user-scope targets. With a key, the entry carries it as an
+   *  Authorization header where the tool takes one, so the tool never asks
+   *  the person to sign in. Project files never get the key: they are
+   *  committed and shared. */
+  user: (h: string, key?: string) => Target[]
   project?: (cwd: string) => Target[]
-  /** How the person signs in once the tool is configured. */
+  /** How the person signs in when the entry carries no key. */
   signIn: string
+  /** The tool's own sign-in command, for a tool whose entry cannot carry a
+   *  key: run by the CLI once the browser is already signed in to sekura.ai. */
+  login?: string[]
 }
 
 const SIGN_IN = 'the first time the tool uses Sekura, a sekura.ai page opens in your browser: sign in with GitHub and approve.'
 const url = { url: ENDPOINT }
 const http = { type: 'http', url: ENDPOINT }
+/** The header a key is sent in, as JSON configurations spell it. */
+const auth = (key?: string) => (key ? { headers: { Authorization: `Bearer ${key}` } } : {})
+/** True when a target sends a key, so its tool needs no sign-in. */
+export const carriesKey = (t: Target): boolean => JSON.stringify(t).includes('Bearer sek_')
 
 export const TOOLS: Tool[] = [
   {
     id: 'tools-claude', name: 'Claude Code',
     detect: (h) => existsSync(join(h, '.claude')) || existsSync(join(h, '.claude.json')) || onPath('claude'),
-    user: (h) => [
-      { kind: 'command', bin: 'claude', add: ['mcp', 'add', '--transport', 'http', '-s', 'user', SERVER_NAME, ENDPOINT], remove: ['mcp', 'remove', '-s', 'user', SERVER_NAME], get: ['mcp', 'get', SERVER_NAME] },
-      { kind: 'json', path: join(h, '.claude.json'), key: 'mcpServers', entry: http },
+    user: (h, key) => [
+      { kind: 'command', bin: 'claude', add: ['mcp', 'add', '--transport', 'http', '-s', 'user', SERVER_NAME, ENDPOINT, ...(key ? ['--header', `Authorization: Bearer ${key}`] : [])], remove: ['mcp', 'remove', '-s', 'user', SERVER_NAME], get: ['mcp', 'get', SERVER_NAME] },
+      { kind: 'json', path: join(h, '.claude.json'), key: 'mcpServers', entry: { ...http, ...auth(key) } },
     ],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.mcp.json'), key: 'mcpServers', entry: http }],
     signIn: `type /mcp in Claude Code, choose ${SERVER_NAME}, and sign in with GitHub.`,
@@ -108,14 +119,14 @@ export const TOOLS: Tool[] = [
   {
     id: 'tools-cursor', name: 'Cursor',
     detect: (h) => existsSync(join(h, '.cursor')) || onPath('cursor'),
-    user: (h) => [{ kind: 'json', path: join(h, '.cursor', 'mcp.json'), key: 'mcpServers', entry: url }],
+    user: (h, key) => [{ kind: 'json', path: join(h, '.cursor', 'mcp.json'), key: 'mcpServers', entry: { ...url, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.cursor', 'mcp.json'), key: 'mcpServers', entry: url }],
     signIn: SIGN_IN,
   },
   {
     id: 'tools-copilot', name: 'GitHub Copilot in VS Code',
     detect: (h) => existsSync(codeUserDir(h)),
-    user: (h) => [{ kind: 'json', path: join(codeUserDir(h), 'mcp.json'), key: 'servers', entry: http }],
+    user: (h, key) => [{ kind: 'json', path: join(codeUserDir(h), 'mcp.json'), key: 'servers', entry: { ...http, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.mcp.json'), key: 'mcpServers', entry: http }],
     signIn: SIGN_IN,
   },
@@ -127,11 +138,12 @@ export const TOOLS: Tool[] = [
       { kind: 'toml', path: join(h, '.codex', 'config.toml'), table: `mcp_servers.${SERVER_NAME}`, lines: [`url = "${ENDPOINT}"`] },
     ],
     signIn: `run codex mcp login ${SERVER_NAME}, or sign in when Codex first uses Sekura.`,
+    login: ['mcp', 'login', SERVER_NAME],
   },
   {
     id: 'tools-kiro', name: 'Kiro',
     detect: (h) => existsSync(join(h, '.kiro')) || onPath('kiro'),
-    user: (h) => [{ kind: 'json', path: join(h, '.kiro', 'settings', 'mcp.json'), key: 'mcpServers', entry: url }],
+    user: (h, key) => [{ kind: 'json', path: join(h, '.kiro', 'settings', 'mcp.json'), key: 'mcpServers', entry: { ...url, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.kiro', 'settings', 'mcp.json'), key: 'mcpServers', entry: url }],
     signIn: SIGN_IN,
   },
@@ -140,26 +152,26 @@ export const TOOLS: Tool[] = [
     // A fresh v4 install has no global-storage folder until the extension
     // writes one, so the installed extension and ~/.cline count too.
     detect: (h) => existsSync(join(h, '.cline')) || hasExtension(h, 'saoudrizwan.claude-dev') || existsSync(join(codeUserDir(h), 'globalStorage', 'saoudrizwan.claude-dev')),
-    user: (h) => [{ kind: 'json', path: clineSettingsPath(h), key: 'mcpServers', entry: { type: 'streamableHttp', url: ENDPOINT } }],
+    user: (h, key) => [{ kind: 'json', path: clineSettingsPath(h), key: 'mcpServers', entry: { type: 'streamableHttp', url: ENDPOINT, ...auth(key) } }],
     signIn: SIGN_IN,
   },
   {
     id: 'tools-zed', name: 'Zed',
     detect: (h) => existsSync(join(xdg(h), 'zed')) || onPath('zed'),
-    user: (h) => [{ kind: 'json', path: join(xdg(h), 'zed', 'settings.json'), key: 'context_servers', entry: url }],
+    user: (h, key) => [{ kind: 'json', path: join(xdg(h), 'zed', 'settings.json'), key: 'context_servers', entry: { ...url, ...auth(key) } }],
     signIn: `${SIGN_IN} Zed keeps the sign-in in your system keychain.`,
   },
   {
     id: 'tools-antigravity', name: 'Antigravity',
     detect: (h) => existsSync(join(h, '.gemini', 'config')),
-    user: (h) => [{ kind: 'json', path: join(h, '.gemini', 'config', 'mcp_config.json'), key: 'mcpServers', entry: { serverUrl: ENDPOINT } }],
+    user: (h, key) => [{ kind: 'json', path: join(h, '.gemini', 'config', 'mcp_config.json'), key: 'mcpServers', entry: { serverUrl: ENDPOINT, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.agents', 'mcp_config.json'), key: 'mcpServers', entry: { serverUrl: ENDPOINT } }],
     signIn: SIGN_IN,
   },
   {
     id: 'tools-opencode', name: 'OpenCode',
     detect: (h) => existsSync(join(xdg(h), 'opencode')) || onPath('opencode'),
-    user: (h) => [{ kind: 'json', path: join(xdg(h), 'opencode', 'opencode.json'), key: 'mcp', entry: { type: 'remote', url: ENDPOINT } }],
+    user: (h, key) => [{ kind: 'json', path: join(xdg(h), 'opencode', 'opencode.json'), key: 'mcp', entry: { type: 'remote', url: ENDPOINT, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, 'opencode.json'), key: 'mcp', entry: { type: 'remote', url: ENDPOINT } }],
     signIn: `OpenCode registers itself with Sekura and opens the sign-in on first use; ${SIGN_IN}`,
   },
@@ -190,15 +202,16 @@ export const TOOLS: Tool[] = [
     detect: () => onPath('devin'),
     user: () => [{ kind: 'command', bin: 'devin', add: ['mcp', 'add', SERVER_NAME, ENDPOINT], remove: ['mcp', 'remove', SERVER_NAME] }],
     signIn: `run devin mcp login ${SERVER_NAME}.`,
+    login: ['mcp', 'login', SERVER_NAME],
   },
   {
     id: 'tools-goose', name: 'Goose',
     detect: (h) => existsSync(gooseDir(h)) || onPath('goose'),
     // The streamable_http shape of Goose's ExtensionConfig (block/goose,
     // crates/goose/src/agents/extension.rs; documentation/docs/guides/config-files.md).
-    user: (h) => [{ kind: 'yaml', path: join(gooseDir(h), 'config.yaml'), key: 'extensions', lines: [
+    user: (h, key) => [{ kind: 'yaml', path: join(gooseDir(h), 'config.yaml'), key: 'extensions', lines: [
       'type: streamable_http', `name: ${SERVER_NAME}`, 'enabled: true', `uri: ${ENDPOINT}`,
-      'envs: {}', 'env_keys: []', 'headers: {}', 'timeout: 300', 'bundled: null', 'available_tools: []',
+      'envs: {}', 'env_keys: []', key ? `headers: { Authorization: "Bearer ${key}" }` : 'headers: {}', 'timeout: 300', 'bundled: null', 'available_tools: []',
     ] }],
     signIn: SIGN_IN,
   },
