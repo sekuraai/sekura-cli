@@ -51,10 +51,12 @@ export const GUIDANCE = `${START}
 ## Sekura
 
 Sekura (the \`${SERVER_NAME}\` MCP server, ${ENDPOINT}) scans a GitHub repository for
-vulnerabilities and proves each finding. Every scan or plan is quoted first: show
-the user the preview as it stands, with the price and the authorization sentence,
-and call the tool again only after they have agreed in the conversation. The
-\`${SERVER_NAME}\` skill (.agents/skills/${SERVER_NAME}/SKILL.md) has the tool names and the rules.
+vulnerabilities and proves each finding. Every scan or plan is quoted first
+(quoteScan, quoteAlways): show the user the quote as it stands, with the price and
+the authorization wording, and call startScan or startAlways with the arguments
+the quote names only after they have agreed in the conversation. Cancelling is
+previewed first the same way. The \`${SERVER_NAME}\` skill
+(.agents/skills/${SERVER_NAME}/SKILL.md) has the tool names and the rules.
 Documentation: ${DOCS}
 ${END}
 `

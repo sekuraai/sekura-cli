@@ -1,7 +1,7 @@
 ---
 name: sekura
 description: Use when the user wants a GitHub repository scanned for vulnerabilities, wants to read scan findings or a report, or wants to put a repository on a recurring Sekura scan. Covers the sekura MCP tools and the rule that every scan and plan is quoted first and started only after the user agrees.
-argument-hint: "[help | repos | scan <owner/repo> | scans | scan-status <scan> | report <scan> | always <owner/repo>]"
+argument-hint: "[help | repos | scan <owner/repo> | scans | scan-status <scan> | findings <scan> | report <scan> | cancel <scan|owner/repo> | always <owner/repo> | schedule <owner/repo> | plans | billing]"
 ---
 
 # Sekura
@@ -22,15 +22,23 @@ the first word:
 - `help`, `-h`, `--help` or `?`: reply with the help text below exactly as written,
   and call no tool.
 - nothing: call `getAccount` and `listRepositories`, summarise who is signed in,
-  whether the free first scan is available, and the repositories Sekura can scan,
-  then end with "Type `/sekura help` for commands."
+  anything the account still needs on sekura.ai, and the repositories Sekura can
+  scan, then end with "Type `/sekura help` for commands."
 - `repos`: `listRepositories`.
-- `scan <owner/repo>`: `startScan` for that repository. This answers with a quote;
-  the two-step rule below applies.
+- `scan <owner/repo>`: `quoteScan` for that repository, then the two-step rule below.
 - `scans`: `listScans`.
 - `scan-status <scan>`: `getScan`. `findings <scan>`: `getScanFindings`.
 - `report <scan>`: `getReportLink`.
-- `always <owner/repo>`: `startAlways`, quoted first like a scan.
+- `cancel <scan>`: `previewCancelScan` with that scan id. `cancel <owner/repo>`:
+  `previewCancelPlan` with that repository. An argument with a `/` in it is a
+  repository; anything else is a scan id. Then the two-step rule below.
+- `always <owner/repo>`: `quoteAlways` for that repository, then the two-step rule.
+  It needs a schedule; if the user gave none, ask when it should run (daily,
+  weekly on a weekday, or monthly on the Nth weekday, at what time, in which time
+  zone) before quoting. The plan (`tier`) is `always` unless the user asks for
+  `plus` or `pro`.
+- `schedule <owner/repo>`: `updateSchedule` for that repository with the schedule
+  the user gives; ask for one if they gave none.
 - `plans`: `getPlans`. `billing`: `getBilling`.
 - anything else: treat the whole text as an ordinary request about Sekura.
 
@@ -39,25 +47,27 @@ The help text:
 ```
 Sekura: AI red team scans for your GitHub repositories
 
-  /sekura                      account, free scan and repositories at a glance
-  /sekura repos                repositories Sekura can scan
-  /sekura scan <owner/repo>    quote a scan; it starts only after you agree
-  /sekura scans                your scans and their status
-  /sekura scan-status <scan>   one scan's progress
-  /sekura findings <scan>      a scan's findings, with proof
-  /sekura report <scan>        link to the report
-  /sekura always <owner/repo>  quote a recurring Sekura Always plan
-  /sekura plans                repositories on a recurring plan
-  /sekura billing              what is being billed
-  /sekura help                 this list
+  /sekura                         account and repositories at a glance
+  /sekura repos                   repositories Sekura can scan
+  /sekura scan <owner/repo>       quote a scan; it starts only after you agree
+  /sekura scans                   your scans and their status
+  /sekura scan-status <scan>      one scan's progress
+  /sekura findings <scan>         a scan's findings, with proof
+  /sekura report <scan>           link to the report
+  /sekura cancel <scan>           what cancelling a scan means; cancels only after you agree
+  /sekura cancel <owner/repo>     the same for a repository's Sekura Always plan
+  /sekura always <owner/repo>     quote a recurring Sekura Always plan
+  /sekura schedule <owner/repo>   change when a Sekura Always plan runs
+  /sekura plans                   repositories on a recurring plan
+  /sekura billing                 what is being billed
+  /sekura help                    this list
 
 Every scan and plan is quoted first (price and authorization) and started
-only after you say yes. Your free first scan is started on sekura.ai:
-https://sekura.ai/app/start
+only after you say yes. Cancelling is shown first too.
 
 Setup, in a terminal:
-  npx sekura@latest login      sign in again, or pick another repository
-  npx sekura@latest status     what is connected on this machine
+  npx sekura@latest login         sign in again, or pick another repository
+  npx sekura@latest status        what is connected on this machine
 
 Add repositories: https://sekura.ai/app (the Sekura GitHub App)
 Documentation:    https://sekura.ai/connect/
@@ -65,37 +75,68 @@ Documentation:    https://sekura.ai/connect/
 
 ## Tools
 
-Read, free, no confirmation:
+The server has eighteen tools. Read, change nothing, no confirmation:
 
-- `getAccount`: who is signed in, what is billed, and whether the account's free first scan is still available on sekura.ai.
+- `getAccount`: who is signed in, whether the Terms are accepted and the email verified, where the Sekura GitHub App is installed, and what is billed. Call it first.
 - `listRepositories`: the repositories the Sekura GitHub App is installed on.
 - `listScans`, `getScan`, `getScanFindings`, `getReportLink`: scans, their status, their findings and the report.
 - `getPlans`, `getBilling`: the repositories on a recurring plan, and a billing summary without card numbers.
 
-Write, each in two steps:
+Quote, then confirm. The quote changes nothing and charges nothing:
 
-- `startScan`: a Sekura Once scan of one repository.
-- `startAlways`: a recurring Sekura Always plan for one repository.
-- `runNow`: bring an Always plan's next scheduled run forward. Charges nothing.
-- `cancelScan`, `cancelPlan`: stop a scan, or end a plan.
+- `quoteScan` → `startScan`: a Sekura Once scan of one repository.
+- `quoteAlways` → `startAlways`: a recurring Sekura Always plan for one repository.
+
+Preview, then act. The preview cancels nothing:
+
+- `previewCancelScan` → `cancelScan`: stop a scan inside its five-minute window.
+- `previewCancelPlan` → `cancelPlan`: end a repository's Sekura Always plan.
+
+One call, charges nothing:
+
+- `updateSchedule`: change when a repository on Sekura Always is scanned.
+- `runNow`: bring an Always plan's next scheduled run forward. It is one of the plan's own runs, so there is no quote.
 
 ## The two-step rule
 
-Every write tool answers first with a preview: what will run, against which
-repository, under which authorization wording, and the price. Show that text to
-the user as it stands, including the price and the authorization sentence.
-Start nothing until the user has agreed in the conversation. Then call the same
-tool again with the arguments the preview names (`confirmArguments` in the
-JSON block). Never invent a confirmation argument, and never pass one before the
-user has said yes.
+A scan or a plan is never started in one call.
+
+1. Call the quote: `quoteScan` with `repository`, or `quoteAlways` with
+   `repository`, `schedule` and, if the user chose one, `tier`. It answers with
+   prose (what will run, against which repository, the authorization wording,
+   the price, and how it can be paid) and a JSON block whose `confirmArguments`
+   are the exact arguments of the confirm: for `startScan` the `repository`,
+   `disclosureVersion` and `amountCents`; for `startAlways` the same plus
+   `schedule` and `tier`.
+2. Show the prose to the user as it stands, including the price and the
+   authorization wording, and ask whether they agree. Start nothing until they
+   have said yes in the conversation.
+3. Then call `startScan` or `startAlways` with `confirmArguments` exactly as the
+   quote returned them, plus the `payment` the user chose from the ways the quote
+   lists: `{ "savedCard": true }` for the card the quote names, or no payment for
+   a Stripe Checkout link. Never invent a `disclosureVersion` or an `amountCents`,
+   never reuse one from an older quote, and never call a confirm before the user
+   has said yes. A confirm without the `disclosureVersion` is refused.
+
+If the confirm is refused because the wording or the price changed, the answer
+carries a fresh quote: show that one to the user and ask again.
+
+Cancelling is the same: call `previewCancelScan` (with `scanId`) or
+`previewCancelPlan` (with `planId` or `repository`), show its answer to the
+user, and call `cancelScan` or `cancelPlan` with the same arguments only after
+they agree.
+
+`updateSchedule` and `runNow` take one call each and charge nothing; call them
+only when the user has asked for that change.
 
 A card is charged only after the user approves the quoted amount. If no card is
-on file, the answer carries a Stripe Checkout link: give it to the user and stop;
-the scan starts once they have paid on sekura.ai.
+used, the answer carries a Stripe Checkout link: give it to the user as it is
+and stop; the scan or plan starts once they have paid on sekura.ai.
 
 ## What to tell the user
 
-- The free first scan is taken on sekura.ai, never through this tool: when `getAccount` says it is still available, tell the user they can start it themselves at https://sekura.ai/app/start, and that a scan started here is Sekura Once at the quoted price.
+- Through this connection a scan is Sekura Once at the quoted price. Do not mention or offer any free scan.
+- When `getAccount` says the Terms or the email are not done, or the GitHub App is not installed, give the user the sekura.ai link it names; a scan cannot start before that.
 - A scan can take a while. Offer `getScan` to check on it rather than polling in a loop.
 - Findings carry proof. When summarising, keep the evidence the finding gives; do not soften a severity.
 - Sekura scans only repositories the user has granted through the Sekura GitHub App. To add one: https://sekura.ai/app.

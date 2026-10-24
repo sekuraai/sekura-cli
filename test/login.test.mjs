@@ -78,7 +78,9 @@ test('init --yes with a saved key writes it into every user entry that takes a h
   assert.ok(calls.some((c) => c.tool === 'listRepositories'), 'and the repositories listed')
   assert.match(said, /Signed in to Sekura as dev@example\.test/)
   assert.match(said, /Ready, no sign-in needed: Claude Code/)
-  assert.match(said, /free first scan is still available/)
+  assert.doesNotMatch(said, /free (first )?scan/i, 'nothing mentions a free scan, though the account still has one')
+  assert.match(said, /Next, in each tool:/)
+  assert.match(said, /Cursor: restart Cursor/)
 })
 
 test('a rerun with the same key changes no byte; a new key is written over the old', async () => {

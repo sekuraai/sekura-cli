@@ -1,8 +1,8 @@
 // The few Sekura tools the CLI calls itself, over the same MCP endpoint the
 // coding tools use. The server is stateless JSON-RPC over POST and answers
 // in plain JSON, so no session and no MCP library: one request per call.
-// Only tools that read are called here; every scan is still quoted and
-// agreed in the coding tool, or started by the person on sekura.ai.
+// Only tools that read are called here; every scan is quoted and agreed in
+// the coding tool.
 
 import { ENDPOINT } from './catalogue.js'
 
@@ -39,7 +39,6 @@ export type Account = {
   email?: string
   termsAccepted?: boolean
   emailVerified?: boolean
-  freeScanAvailable?: boolean
   installations?: number
   links?: { dashboard?: string; start?: string; settings?: string; scans?: string }
 }

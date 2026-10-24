@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // sekura: connect your coding tool to Sekura in one command.
 //
-//   npx sekura@latest init
+//   npx sekura@latest init      (a bare `npx sekura@latest` runs init too)
 //
 // Sekura's MCP server is remote (https://sekura.ai/mcp), so this package
 // runs no server: it writes the server's address into the tools on this
 // machine, installs the skill that teaches an agent the quote-then-confirm
-// rule, and then finishes getting started in the terminal. It signs in once
-// on a sekura.ai page and gives the resulting key to each tool, so none of
-// them asks, then helps with the GitHub App, a repository and the free scan.
+// rule, and then finishes getting started in the terminal. Once the plan is
+// agreed it signs in on a sekura.ai page (or with a code, where the browser
+// is on another device) and gives the resulting key to each tool, so none
+// of them asks, then helps with the Terms, the GitHub App and a repository.
 
 import { Command } from 'commander'
 import { createRequire } from 'node:module'
@@ -23,9 +24,9 @@ const { version } = createRequire(import.meta.url)('../package.json') as { versi
 const program = new Command()
 program
   .name('sekura')
-  .description(`Connect your coding tool to Sekura.\n\n  npx sekura@latest init\n\nDocumentation: ${DOCS}`)
+  .description(`Connect your coding tool to Sekura.\n\n  npx sekura@latest init    (a bare npx sekura@latest runs init too)\n\nDocumentation: ${DOCS}`)
   .version(version)
-  .addCommand(initCommand, { isDefault: false })
+  .addCommand(initCommand, { isDefault: true })
   .addCommand(loginCommand)
   .addCommand(statusCommand)
   .addCommand(uninstallCommand)

@@ -92,16 +92,27 @@ export type Tool = {
   project?: (cwd: string) => Target[]
   /** How the person signs in when the entry carries no key. */
   signIn: string
+  /** What to do in the tool once the entry is written, so it loads the
+   *  server; NEXT when the tool has nothing more specific. */
+  next?: string
   /** The tool's own sign-in command, for a tool whose entry cannot carry a
    *  key: run by the CLI once the browser is already signed in to sekura.ai. */
   login?: string[]
 }
+
+/** Stands in for the key in the plan shown before the sign-in. Not a key
+ *  shape (no sek_ prefix), so it is never redacted into one, and writers.ts
+ *  refuses to write a target that carries it. */
+export const PENDING_KEY = '<your key, after sign-in>'
 
 const SIGN_IN = 'the first time the tool uses Sekura, a sekura.ai page opens in your browser: sign in with GitHub and approve.'
 const url = { url: ENDPOINT }
 const http = { type: 'http', url: ENDPOINT }
 /** The header a key is sent in, as JSON configurations spell it. */
 const auth = (key?: string) => (key ? { headers: { Authorization: `Bearer ${key}` } } : {})
+/** The generic next step, for a tool with nothing more specific. */
+export const NEXT = (name: string) => `restart ${name} so it loads the sekura server.`
+export const nextStep = (t: Tool): string => t.next ?? NEXT(t.name)
 /** True when a target sends a key, so its tool needs no sign-in. */
 export const carriesKey = (t: Target): boolean => JSON.stringify(t).includes('Bearer sek_')
 
@@ -115,6 +126,7 @@ export const TOOLS: Tool[] = [
     ],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.mcp.json'), key: 'mcpServers', entry: http }],
     signIn: `type /mcp in Claude Code, choose ${SERVER_NAME}, and sign in with GitHub.`,
+    next: `start a new Claude Code session, then type /${SERVER_NAME}.`,
   },
   {
     id: 'tools-cursor', name: 'Cursor',
@@ -122,6 +134,7 @@ export const TOOLS: Tool[] = [
     user: (h, key) => [{ kind: 'json', path: join(h, '.cursor', 'mcp.json'), key: 'mcpServers', entry: { ...url, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.cursor', 'mcp.json'), key: 'mcpServers', entry: url }],
     signIn: SIGN_IN,
+    next: `restart Cursor (or reload MCP servers in Settings → MCP).`,
   },
   {
     id: 'tools-copilot', name: 'GitHub Copilot in VS Code',
@@ -129,6 +142,7 @@ export const TOOLS: Tool[] = [
     user: (h, key) => [{ kind: 'json', path: join(codeUserDir(h), 'mcp.json'), key: 'servers', entry: { ...http, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.mcp.json'), key: 'mcpServers', entry: http }],
     signIn: SIGN_IN,
+    next: `reload the VS Code window (Command Palette → Developer: Reload Window), then use Copilot Chat in Agent mode.`,
   },
   {
     id: 'tools-codex', name: 'OpenAI Codex',
@@ -138,6 +152,7 @@ export const TOOLS: Tool[] = [
       { kind: 'toml', path: join(h, '.codex', 'config.toml'), table: `mcp_servers.${SERVER_NAME}`, lines: [`url = "${ENDPOINT}"`] },
     ],
     signIn: `run codex mcp login ${SERVER_NAME}, or sign in when Codex first uses Sekura.`,
+    next: `start a new codex session.`,
     login: ['mcp', 'login', SERVER_NAME],
   },
   {
@@ -146,6 +161,7 @@ export const TOOLS: Tool[] = [
     user: (h, key) => [{ kind: 'json', path: join(h, '.kiro', 'settings', 'mcp.json'), key: 'mcpServers', entry: { ...url, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.kiro', 'settings', 'mcp.json'), key: 'mcpServers', entry: url }],
     signIn: SIGN_IN,
+    next: `restart Kiro (or reconnect ${SERVER_NAME} in the MCP servers view of the Kiro panel).`,
   },
   {
     id: 'tools-cline', name: 'Cline',
@@ -154,12 +170,14 @@ export const TOOLS: Tool[] = [
     detect: (h) => existsSync(join(h, '.cline')) || hasExtension(h, 'saoudrizwan.claude-dev') || existsSync(join(codeUserDir(h), 'globalStorage', 'saoudrizwan.claude-dev')),
     user: (h, key) => [{ kind: 'json', path: clineSettingsPath(h), key: 'mcpServers', entry: { type: 'streamableHttp', url: ENDPOINT, ...auth(key) } }],
     signIn: SIGN_IN,
+    next: `reload the VS Code window, or start a new session in the Cline CLI; Cline's MCP Servers view should show ${SERVER_NAME}.`,
   },
   {
     id: 'tools-zed', name: 'Zed',
     detect: (h) => existsSync(join(xdg(h), 'zed')) || onPath('zed'),
     user: (h, key) => [{ kind: 'json', path: join(xdg(h), 'zed', 'settings.json'), key: 'context_servers', entry: { ...url, ...auth(key) } }],
     signIn: `${SIGN_IN} Zed keeps the sign-in in your system keychain.`,
+    next: `Zed reads settings.json again by itself; start a new thread in the Agent Panel.`,
   },
   {
     id: 'tools-antigravity', name: 'Antigravity',
@@ -167,6 +185,7 @@ export const TOOLS: Tool[] = [
     user: (h, key) => [{ kind: 'json', path: join(h, '.gemini', 'config', 'mcp_config.json'), key: 'mcpServers', entry: { serverUrl: ENDPOINT, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.agents', 'mcp_config.json'), key: 'mcpServers', entry: { serverUrl: ENDPOINT } }],
     signIn: SIGN_IN,
+    next: `restart Antigravity (or refresh in Manage MCP servers).`,
   },
   {
     id: 'tools-opencode', name: 'OpenCode',
@@ -174,6 +193,7 @@ export const TOOLS: Tool[] = [
     user: (h, key) => [{ kind: 'json', path: join(xdg(h), 'opencode', 'opencode.json'), key: 'mcp', entry: { type: 'remote', url: ENDPOINT, ...auth(key) } }],
     project: (cwd) => [{ kind: 'json', path: join(cwd, 'opencode.json'), key: 'mcp', entry: { type: 'remote', url: ENDPOINT } }],
     signIn: `OpenCode registers itself with Sekura and opens the sign-in on first use; ${SIGN_IN}`,
+    next: `start a new opencode session.`,
   },
   {
     id: 'tools-jetbrains', name: 'JetBrains Junie',
@@ -190,18 +210,21 @@ export const TOOLS: Tool[] = [
       { kind: 'link', href: `${DOCS}#tools-factory`, note: 'droid is not on PATH; run the command from the page in a terminal where it is.' },
     ],
     signIn: `type /mcp in Droid and sign in to ${SERVER_NAME}.`,
+    next: `start a new droid session.`,
   },
   {
     id: 'tools-tabnine', name: 'Tabnine CLI',
     detect: () => onPath('tabnine'),
     user: () => [{ kind: 'command', bin: 'tabnine', add: ['mcp', 'add', SERVER_NAME, ENDPOINT, '--type', 'http'], remove: ['mcp', 'remove', SERVER_NAME] }],
     signIn: 'run /mcp auth in the Tabnine CLI.',
+    next: `start a new tabnine session.`,
   },
   {
     id: 'tools-devin', name: 'Devin Desktop and CLI',
     detect: () => onPath('devin'),
     user: () => [{ kind: 'command', bin: 'devin', add: ['mcp', 'add', SERVER_NAME, ENDPOINT], remove: ['mcp', 'remove', SERVER_NAME] }],
     signIn: `run devin mcp login ${SERVER_NAME}.`,
+    next: `start a new devin session, or restart Devin Desktop.`,
     login: ['mcp', 'login', SERVER_NAME],
   },
   {
@@ -214,6 +237,7 @@ export const TOOLS: Tool[] = [
       'envs: {}', 'env_keys: []', key ? `headers: { Authorization: "Bearer ${key}" }` : 'headers: {}', 'timeout: 300', 'bundled: null', 'available_tools: []',
     ] }],
     signIn: SIGN_IN,
+    next: `start a new goose session, or restart Goose Desktop.`,
   },
 ]
 

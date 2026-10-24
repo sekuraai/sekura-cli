@@ -6,6 +6,9 @@
 // on 127.0.0.1 for a client that registered a loopback URI). What comes back
 // is an ordinary `sek_live_` key with no expiry, listed and revocable under
 // Settings → Agents and API keys, bound to the MCP address (RFC 8707).
+// Where the browser is on another machine (SSH, a container, --device, or
+// none to open here), the same client signs in with a code instead
+// (device.ts, RFC 8628).
 //
 // The key is kept in ~/.config/sekura/credentials.json, readable by the
 // person only, so a rerun of `init` or `login` does not sign in again.
@@ -17,7 +20,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, chmodSync }
 import { hostname, platform } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
-import { ENDPOINT, home } from './catalogue.js'
+import { ENDPOINT, home, onPath } from './catalogue.js'
+import { DEVICE_GRANT, deviceSignIn, remoteSession, type DeviceShown, type Poll } from './device.js'
 
 export const ISSUER = new URL(ENDPOINT).origin
 
@@ -71,8 +75,17 @@ export function pkce(): { verifier: string; challenge: string } {
 
 // ── the browser ────────────────────────────────────────────────────────────
 
+/** Whether this machine has a browser to open. On Linux that takes a
+ *  display and xdg-open; a bare server or container has neither, and the
+ *  spawn's failure would only arrive after the URL was promised. */
+export function hasBrowser(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (platform() === 'darwin' || platform() === 'win32') return true
+  return !!(env.DISPLAY || env.WAYLAND_DISPLAY) && onPath('xdg-open')
+}
+
 /** Opens a URL in the default browser; false when there is none to ask. */
 export function openBrowser(url: string): boolean {
+  if (!hasBrowser()) return false
   const [cmd, args] = platform() === 'darwin' ? ['open', [url]]
     : platform() === 'win32' ? ['cmd', ['/c', 'start', '""', url.replace(/&/g, '^&')]]
     : ['xdg-open', [url]]
@@ -120,7 +133,8 @@ export async function listen(state: string, timeoutMs: number): Promise<{ redire
   const port = (server.address() as { port: number }).port
   const timer = setTimeout(() => settle({ error: 'no answer from the browser in time' }), timeoutMs)
   timer.unref()
-  const close = () => { clearTimeout(timer); server.close(); server.closeAllConnections?.() }
+  let closed = false
+  const close = () => { if (closed) return; closed = true; clearTimeout(timer); server.close(); server.closeAllConnections?.() }
   return { redirectUri: `http://127.0.0.1:${port}/callback`, result, close }
 }
 
@@ -133,32 +147,59 @@ async function post(path: string, body: string, type: string): Promise<Record<st
   return data
 }
 
-/**
- * Signs in in the browser and returns the key. `onUrl` is told the address
- * before the browser is asked to open it, so it can be printed for a machine
- * with no browser to open.
- */
-export async function signIn(opts: { open?: boolean; timeoutMs?: number; onUrl?: (url: string) => void } = {}): Promise<string> {
+/** One public client for both ways in: the loopback redirect and the
+ *  device code. sekura.ai accepts any port on the registered loopback URI. */
+export async function register(): Promise<string> {
+  const reg = await post('/oauth/register', JSON.stringify({
+    client_name: `Sekura CLI (${hostname().slice(0, 60)})`,
+    redirect_uris: ['http://127.0.0.1/callback'],
+    token_endpoint_auth_method: 'none',
+    grant_types: ['authorization_code', DEVICE_GRANT],
+    response_types: ['code'],
+  }), 'application/json')
+  const clientId = String(reg.client_id ?? '')
+  if (!clientId) throw new Error('sekura.ai did not register the CLI')
+  return clientId
+}
+
+export type SignInOptions = Poll & {
+  open?: boolean
+  timeoutMs?: number
+  /** Told the address before the browser is asked to open it, so it can be
+   *  printed for a browser that does not open. */
+  onUrl?: (url: string) => void
+  /** true: the device code, whatever the machine. Unset: the device code
+   *  when this terminal is remote or has no browser to open. */
+  device?: boolean
+  onCode?: (c: DeviceShown) => void
+  /** Told why the device code is used instead of the browser. */
+  onDevice?: (why: string) => void
+}
+
+/** Signs in and returns the key. */
+export async function signIn(opts: SignInOptions = {}): Promise<string> {
+  const clientId = await register()
+  const remote = remoteSession()
+  const why = opts.device ? '--device' : remote ? `${remote} is set` : opts.open !== false && !hasBrowser() ? 'there is no browser to open here' : null
+  if (why) {
+    opts.onDevice?.(why)
+    return deviceSignIn(clientId, opts)
+  }
   const state = b64url(randomBytes(16))
   const { verifier, challenge } = pkce()
   const cb = await listen(state, opts.timeoutMs ?? 300_000)
   try {
-    const reg = await post('/oauth/register', JSON.stringify({
-      client_name: `Sekura CLI (${hostname().slice(0, 60)})`,
-      redirect_uris: ['http://127.0.0.1/callback'],
-      token_endpoint_auth_method: 'none',
-      grant_types: ['authorization_code'],
-      response_types: ['code'],
-    }), 'application/json')
-    const clientId = String(reg.client_id ?? '')
-    if (!clientId) throw new Error('sekura.ai did not register the CLI')
     const url = new URL(`${ISSUER}/oauth/authorize`)
     for (const [k, v] of Object.entries({
       response_type: 'code', client_id: clientId, redirect_uri: cb.redirectUri, state,
       code_challenge: challenge, code_challenge_method: 'S256', scope: 'read write', resource: ENDPOINT,
     })) url.searchParams.set(k, v)
     opts.onUrl?.(url.href)
-    if (opts.open !== false) openBrowser(url.href)
+    if (opts.open !== false && !openBrowser(url.href)) {
+      cb.close()
+      opts.onDevice?.('the browser did not open')
+      return deviceSignIn(clientId, opts)
+    }
     const r = await cb.result
     if ('error' in r) throw new Error(`Sekura sign-in: ${r.error}`)
     const tok = await post('/oauth/token', new URLSearchParams({

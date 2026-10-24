@@ -15,7 +15,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { ENDPOINT, SERVER_NAME, type Target } from './catalogue.js'
+import { ENDPOINT, PENDING_KEY, SERVER_NAME, type Target } from './catalogue.js'
 import { redactAll } from './auth.js'
 
 export type Outcome =
@@ -282,6 +282,9 @@ export function applyCommand(t: Extract<Target, { kind: 'command' }>): Outcome {
 // ── one door for every kind ────────────────────────────────────────────
 
 export function apply(t: Target): Outcome {
+  // The plan shown before the sign-in stands in for the key; it is rebuilt
+  // with the real one (or none) before anything is applied.
+  if (JSON.stringify(t).includes(PENDING_KEY)) return { status: 'failed', where: describe(t), why: 'the key is not there yet; nothing was written' }
   switch (t.kind) {
     case 'json': return applyJson(t)
     case 'toml': return applyToml(t)

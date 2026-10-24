@@ -1,20 +1,22 @@
-// `sekura login`: sign in here and put the key into every tool already
-// connected, then the account, a repository and the free scan. For someone
-// who skipped the sign-in during init, revoked the key, or wants another
-// repository. `sekura logout`: forget the saved key.
+// `sekura login`: sign in here (in the browser, or with a code on another
+// device) and put the key into every tool already connected, then the
+// account and a repository. For someone who skipped the sign-in during
+// init, revoked the key, or wants another repository. `sekura logout`:
+// forget the saved key.
 
 import { Command } from 'commander'
 import { applyStep, buildPlan, detectTools, stepPresent } from '../plan.js'
 import { carriesKey } from '../catalogue.js'
 import { credentialsPath, forgetKey } from '../auth.js'
-import { checkAccount, howToScan, obtainKey, offerFreeScan, pickRepository, runToolLogins } from '../guide.js'
+import { checkAccount, howToScan, obtainKey, pickRepository, runToolLogins } from '../guide.js'
+import type { Wait } from '../ui.js'
 import { cross, dot, say, tick } from '../ui.js'
 
-export async function runLogin(opts: { cwd?: string }): Promise<number> {
+export async function runLogin(opts: { cwd?: string; device?: boolean; wait?: Wait }): Promise<number> {
   const cwd = opts.cwd ?? process.cwd()
   const interactive = !!(process.stdin.isTTY && process.stderr.isTTY)
   say()
-  const session = await obtainKey({ interactive, ask: false })
+  const session = await obtainKey({ interactive, device: opts.device })
   if (!session) { say('  Not signed in; nothing was changed.'); say(); return 1 }
 
   // The tools Sekura is already in (user scope), with or without a key,
@@ -40,9 +42,8 @@ export async function runLogin(opts: { cwd?: string }): Promise<number> {
   if (!names.length) say(`${dot} No tool on this machine has Sekura yet: run sekura init.`)
 
   say()
-  await checkAccount(session, interactive)
-  const repo = await pickRepository(session, cwd, interactive)
-  await offerFreeScan(session, repo, interactive)
+  await checkAccount(session, interactive, opts.wait)
+  const repo = await pickRepository(session, cwd, interactive, opts.wait)
   if (names.length) { say(); howToScan(names, repo) }
   say()
   return failed
@@ -50,7 +51,8 @@ export async function runLogin(opts: { cwd?: string }): Promise<number> {
 
 export const loginCommand = new Command('login')
   .description('Sign in to Sekura here, give the key to every connected tool, and pick a repository.')
-  .action(async () => { process.exitCode = (await runLogin({})) ? 1 : 0 })
+  .option('--device', 'sign in with a code on another device (the default over SSH and in containers)')
+  .action(async (opts: { device?: boolean }) => { process.exitCode = (await runLogin({ device: opts.device })) ? 1 : 0 })
 
 export const logoutCommand = new Command('logout')
   .description('Forget the Sekura key saved on this machine.')
