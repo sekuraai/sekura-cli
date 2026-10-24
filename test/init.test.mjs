@@ -197,7 +197,7 @@ test('uninstall removes only the sekura entries, the skill and the block', async
 })
 
 test('a tool that is not here is refused by name', () => {
-  assert.throws(() => buildPlan({ tools: ['tools-nope'], scope: 'user', skill: false, cwd: PROJECT }), /no tool named tools-nope/)
+  assert.throws(() => buildPlan({ tools: ['tools-nope'], scope: 'user', skill: false, cwd: PROJECT }), /Unknown tool 'nope'\. Use one or more of: claude, cursor/)
 })
 
 test('a tool with no project file is skipped with a reason in project scope', () => {
@@ -207,3 +207,13 @@ test('a tool with no project file is skipped with a reason in project scope', ()
 })
 
 test.after(() => { rmSync(HOME, { recursive: true, force: true }); rmSync(PROJECT, { recursive: true, force: true }) })
+
+test('without a terminal and without --yes, init shows the plan and changes nothing', async () => {
+  const r = await runInit({ scope: 'user', tools: 'cursor', skill: false, cwd: PROJECT, verify: false, login: false })
+  assert.deepEqual(r, { written: 0, byHand: 0, failed: 0 })
+})
+
+test('an unknown --tools name changes nothing and fails', async () => {
+  const r = await runInit({ yes: true, scope: 'user', tools: 'claude,nope', cwd: PROJECT, verify: false, login: false })
+  assert.deepEqual(r, { written: 0, byHand: 0, failed: 1 })
+})

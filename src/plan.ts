@@ -31,7 +31,7 @@ export function buildPlan(opts: { tools: string[]; scope: Scope; skill: boolean;
   const skipped: { tool: Tool; why: string }[] = []
   for (const id of opts.tools) {
     const tool = toolById(id)
-    if (!tool) throw new Error(`no tool named ${id}; one of ${TOOLS.map((t) => t.id).join(', ')}`)
+    if (!tool) throw new Error(`Unknown tool '${id.replace(/^tools-/, '')}'. Use one or more of: ${TOOLS.map((t) => t.id.replace('tools-', '')).join(', ')}`)
     const targets = opts.scope === 'user' ? tool.user(home(), opts.key ?? undefined) : tool.project?.(cwd)
     if (!targets) { skipped.push({ tool, why: 'has no project-level configuration; run with --scope user' }); continue }
     const target = pickTarget(targets)

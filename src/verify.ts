@@ -5,6 +5,7 @@
 // than from their tool later.
 
 import { ENDPOINT } from './catalogue.js'
+import { unreachable } from './errors.js'
 
 export type Verdict = { ok: true; detail: string } | { ok: false; detail: string }
 
@@ -14,11 +15,11 @@ export async function verifyEndpoint(endpoint = ENDPOINT, timeoutMs = 8000): Pro
   try {
     const r = await fetch(endpoint, { method: 'GET', headers: { accept: 'application/json' }, signal: ctl.signal, redirect: 'manual' })
     const type = r.headers.get('content-type') || ''
-    if (r.status === 401 && type.includes('json')) return { ok: true, detail: `${endpoint} answers 401 (sign-in required), as it should before you sign in` }
+    if (r.status === 401 && type.includes('json')) return { ok: true, detail: `${endpoint} answers and asks for a key, as it should` }
     if (r.status === 200) return { ok: true, detail: `${endpoint} answers 200` }
-    return { ok: false, detail: `${endpoint} answered ${r.status} ${type || ''}`.trim() }
-  } catch (e) {
-    return { ok: false, detail: `${endpoint} could not be reached: ${(e as Error).message}` }
+    return { ok: false, detail: `${endpoint} answered HTTP ${r.status}, not the Sekura server; check the address, or try again in a minute` }
+  } catch {
+    return { ok: false, detail: `${endpoint}: ${unreachable()}` }
   } finally {
     clearTimeout(timer)
   }

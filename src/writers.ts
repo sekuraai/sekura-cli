@@ -59,7 +59,11 @@ export function describe(t: Target, dryRun = false): string {
 function describeRaw(t: Target, dryRun: boolean): string {
   const verb = dryRun ? 'would ' : ''
   switch (t.kind) {
-    case 'json': return `${verb}write ${t.path}: ${t.key}.${SERVER_NAME} = ${JSON.stringify(t.entry)}`
+    case 'json': {
+      const r = readJson(t.path)
+      if ('invalid' in r) return `by hand: ${t.path} is not rewritten because ${r.invalid}; you will be shown the lines to add`
+      return `${verb}write ${t.path}: ${t.key}.${SERVER_NAME} = ${JSON.stringify(t.entry)}`
+    }
     case 'toml': return `${verb}write ${t.path}: [${t.table}] ${t.lines.join('; ')}`
     case 'yaml': return `${verb}write ${t.path}: ${t.key}.${SERVER_NAME} (${t.lines.slice(0, 4).join(', ')})`
     case 'command': return `${verb}run ${t.bin} ${t.add.join(' ')}`

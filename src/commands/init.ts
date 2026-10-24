@@ -51,8 +51,17 @@ export function summary(o: { names: string[]; scope: Scope; skill: boolean; sign
   return `Connect ${and(o.names)} ${where}, ${o.skill ? 'with' : 'without'} the skill${sign}?`
 }
 
-export async function runInit(opts: InitOptions): Promise<{ written: number; byHand: number; failed: number }> {
+export type InitResult = { written: number; byHand: number; failed: number; signInFailed?: boolean }
+
+export const toolFlags = (): string[] => TOOLS.map((t) => t.id.replace('tools-', ''))
+
+export function unknownTools(names: string[]): string[] {
+  return names.filter((n) => !toolById(`tools-${n.replace(/^tools-/, '')}`))
+}
+
+export async function runInit(opts: InitOptions): Promise<InitResult> {
   const interactive = !opts.yes && !!process.stdin.isTTY && !!process.stderr.isTTY
+  const unattended = !opts.yes && !interactive
   const cwd = opts.cwd ?? process.cwd()
   banner({ login: opts.login })
 
@@ -61,9 +70,17 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
   const detected = detectTools(cwd)
   let chosen: string[]
   if (opts.tools) {
-    chosen = opts.tools.split(',').map((s) => s.trim()).filter(Boolean).map((s) => (s.startsWith('tools-') ? s : `tools-${s}`))
+    const names = opts.tools.split(',').map((s) => s.trim()).filter(Boolean)
+    const unknown = unknownTools(names)
+    if (unknown.length || !names.length) {
+      say(`  Unknown tool ${unknown.map((n) => `'${n}'`).join(', ') || "''"}. Use one or more of: ${toolFlags().join(', ')}`)
+      say('  Nothing was changed.')
+      return { written: 0, byHand: 0, failed: 1 }
+    }
+    chosen = names.map((s) => (s.startsWith('tools-') ? s : `tools-${s}`))
   } else if (detected.length === 0) {
     say('  No supported coding tool was found on this machine.')
+    say(`  If you use one, name it: npx sekura@latest init --tools claude (or ${toolFlags().slice(1).join(', ')})`)
     say(`  Sekura connects to Claude Code, Cursor, GitHub Copilot, OpenAI Codex and nearly forty other tools; the page has every one: ${DOCS}`)
     return { written: 0, byHand: 0, failed: 0 }
   } else {
@@ -146,6 +163,11 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
   say(`${dot} touch nothing else: other servers, settings and files stay as they are`)
   say()
   if (opts.dryRun) return { written: 0, byHand: 0, failed: 0 }
+  if (unattended) {
+    say('  There is no terminal to ask in, so nothing was changed. Run the same command with --yes to apply this plan.')
+    say()
+    return { written: 0, byHand: 0, failed: 0 }
+  }
   if (interactive && !(await confirm({ message: 'Apply?', default: true }))) {
     say('  Nothing was changed.')
     return { written: 0, byHand: 0, failed: 0 }
@@ -157,7 +179,7 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
   let plan = shown
   if (willSignIn) {
     session = await signInHere({ device: opts.device })
-    if (!session) say('  Applying the plan without a key instead: each tool signs in the first time it uses Sekura.')
+    if (!session) say('  The sign-in did not finish. Applying the plan without a key: each tool signs in the first time it uses Sekura, or run sekura login later.')
     plan = buildPlan({ tools: chosen, scope, skill, cwd, key: session?.key })
   }
 
@@ -189,8 +211,10 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
   }
 
   // 7. Verify the address.
+  let reachable: boolean | null = null
   if (opts.verify !== false) {
     const v = await verifyEndpoint(ENDPOINT)
+    reachable = v.ok
     say(`${v.ok ? tick : cross} ${v.detail}`)
   }
 
@@ -207,7 +231,8 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
   if (signIns.size) {
     const ready = [...signIns].filter(([, how]) => how === null).map(([name]) => name)
     const pending = [...signIns].filter(([, how]) => how !== null)
-    if (ready.length) say(`${tick} Ready, no sign-in needed: ${ready.join(', ')}`)
+    const confirmed = !!session?.account || reachable === true
+    if (ready.length) say(confirmed ? `${tick} Ready, no sign-in needed: ${ready.join(', ')}` : `${dot} Given your key, not yet confirmed because Sekura did not answer: ${ready.join(', ')}`)
     if (pending.length) {
       say('  Sign in once per tool:')
       for (const [name, how] of pending) say(`${dot} ${name}: ${how}`)
@@ -218,9 +243,11 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
     howToScan([...signIns.keys()], repo, session?.account)
     say()
   }
+  if (willSignIn && !session) say(`${cross} Not signed in: run sekura login to finish, so your tools do not each ask.`)
+  else if (!session && keyed && signIns.size) say(`  To give your tools a key so they do not each ask you to sign in: run sekura login`)
   say(`  Documentation and every other tool: ${DOCS}`)
   say()
-  return { written, byHand, failed }
+  return { written, byHand, failed, signInFailed: willSignIn && !session }
 }
 
 /** A --no-x flag's value only when it was typed: commander fills in true
@@ -235,12 +262,12 @@ export const initCommand = new Command('init')
   .option('-y, --yes', 'apply without asking; every detected tool, user scope, with the skill, and the key in SEKURA_API_KEY or saved by sekura login')
   .option('--no-skill', 'the MCP server only: no skill, no guidance block')
   .option('--scope <scope>', 'user (every project) or project (this directory)', (v) => { if (v !== 'user' && v !== 'project') throw new Error('--scope is user or project'); return v })
-  .option('--tools <ids>', `only these, comma-separated: ${TOOLS.map((t) => t.id.replace('tools-', '')).join(', ')}`)
+  .option('--tools <ids>', `only these, comma-separated: ${toolFlags().join(', ')}`)
   .option('--dry-run', 'show the plan and change nothing; never signs in')
   .option('--no-verify', 'do not check that the Sekura server answers')
   .option('--no-login', 'do not sign in here; each tool signs in on first use (0.1.x behaviour)')
   .option('--device', 'sign in with a code on another device (the default over SSH and in containers)')
   .action(async (opts: InitOptions, cmd: Command) => {
     const r = await runInit(typedOnly(opts, cmd, ['skill', 'login']))
-    process.exitCode = r.failed ? 1 : 0
+    process.exitCode = r.failed || r.signInFailed ? 1 : 0
   })

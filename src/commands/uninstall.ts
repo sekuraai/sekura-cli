@@ -22,6 +22,7 @@ export async function runUninstall(opts: { yes?: boolean; keepSkill?: boolean; k
   if (!opts.keepLogin) say(`${dot} the saved key, ${credentialsPath()}`)
   say('  and change nothing else.')
   say()
+  if (!opts.yes && !interactive) { say('  There is no terminal to ask in, so nothing was changed. Run sekura uninstall --yes to remove.'); say(); return 0 }
   if (interactive && !(await confirm({ message: 'Remove?', default: false }))) { say('  Nothing was changed.'); return 0 }
   let failed = 0
   for (const s of plan.steps) {

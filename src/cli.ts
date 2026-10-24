@@ -12,7 +12,7 @@
 // of them asks, then helps with the Terms, the GitHub App and a repository.
 
 import { createRequire } from 'node:module'
-import { ENDPOINT_FLAG, ENDPOINT_VAR, endpointFromArgv, parseOrigin } from './origin.js'
+import { COMMANDS, ENDPOINT_FLAG, ENDPOINT_VAR, endpointFromArgv, parseOrigin, unknownCommand } from './origin.js'
 
 const fail = (message: string, code = 1): never => {
   process.stderr.write(`\n  ${message}\n\n`)
@@ -26,13 +26,19 @@ if (flag !== null) {
   try { parseOrigin(process.env[ENDPOINT_VAR]!) } catch (e) { fail(`${ENDPOINT_VAR}: ${(e as Error).message}`) }
 }
 
+const { FREE_LINE, ONCE_PRICE, PRICE_LINE, SUPPORT } = await import('./offer.js')
+
+const stray = unknownCommand(process.argv.slice(2))
+if (stray !== null) {
+  fail(`Unknown command ${stray}. Commands: ${COMMANDS.filter((c) => c !== 'help').join(', ')}.\n  To scan a repository, ask your coding tool: /sekura scan owner/repo (Sekura Once, ${ONCE_PRICE}, quoted first).\n  ${FREE_LINE}`)
+}
+
 const { Command } = await import('commander')
 const { initCommand } = await import('./commands/init.js')
 const { statusCommand } = await import('./commands/status.js')
 const { uninstallCommand } = await import('./commands/uninstall.js')
 const { loginCommand, logoutCommand } = await import('./commands/login.js')
 const { DOCS } = await import('./catalogue.js')
-const { FREE_LINE, PRICE_LINE, SUPPORT } = await import('./offer.js')
 
 const { version } = createRequire(import.meta.url)('../package.json') as { version: string }
 

@@ -32,3 +32,17 @@ export function endpointFromArgv(argv: string[]): string | null {
   }
   return null
 }
+
+export const COMMANDS = ['init', 'login', 'status', 'uninstall', 'logout', 'help'] as const
+const VALUE_OPTIONS = new Set([ENDPOINT_FLAG, '--tools', '--scope'])
+
+export function unknownCommand(argv: string[]): string | null {
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    if (a === '--') return null
+    if (VALUE_OPTIONS.has(a)) { i++; continue }
+    if (a.startsWith('-')) continue
+    return (COMMANDS as readonly string[]).includes(a) ? null : a
+  }
+  return null
+}

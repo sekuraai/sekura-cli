@@ -19,7 +19,13 @@ export async function runLogin(opts: { cwd?: string; device?: boolean; wait?: Wa
   say()
   endpointNotice()
   const session = await obtainKey({ interactive, device: opts.device })
-  if (!session) { say('  Not signed in; nothing was changed.'); say(); return 1 }
+  if (!session) {
+    say(interactive
+      ? '  Not signed in; nothing was changed. Run sekura login again to retry.'
+      : `  There is no terminal to sign in from, so nothing was changed. Run sekura login in a terminal, or set SEKURA_API_KEY to a key from ${siteUrl('/app/settings')} → Agents and API keys.`)
+    say()
+    return 1
+  }
 
   // The tools Sekura is already in (user scope), with or without a key,
   // get the entry again with this key.
