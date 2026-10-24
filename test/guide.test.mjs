@@ -110,11 +110,17 @@ test('every tool has a next step; one with nothing specific gets the plain line'
   assert.equal(nextStep(toolById('tools-jetbrains')), NEXT('JetBrains Junie'))
 })
 
-test('nothing the CLI ships mentions a free scan', () => {
+test('the CLI names the free scan only to say it is web-only (CEO Q4)', async () => {
+  const { PRICE_LINE, FREE_LINE, ONCE_PRICE } = await import('../dist/offer.js')
+  assert.equal(ONCE_PRICE, '$200')
+  assert.match(PRICE_LINE, /Sekura Once at \$200, quoted first and started only after you agree/)
+  assert.equal(FREE_LINE, 'Your first scan is free only when you start it yourself on the website: https://sekura.ai/app/start')
   const dist = new URL('../dist/', import.meta.url)
   const files = readdirSync(dist, { recursive: true }).filter((f) => String(f).endsWith('.js'))
   assert.ok(files.length > 5)
-  for (const f of files) assert.doesNotMatch(readFileSync(new URL(String(f), dist), 'utf8'), /free (first )?scan/i, String(f))
+  for (const f of files) {
+    for (const m of readFileSync(new URL(String(f), dist), 'utf8').matchAll(/[^`'\n]*free (first )?scan[^`'\n]*/gi)) assert.match(m[0], /free only when you start it yourself on the website/, `${f}: ${m[0]}`)
+  }
 })
 
 test.after(() => { rmSync(HOME, { recursive: true, force: true }); rmSync(PROJECT, { recursive: true, force: true }) })

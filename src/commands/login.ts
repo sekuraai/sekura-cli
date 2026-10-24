@@ -46,7 +46,7 @@ export async function runLogin(opts: { cwd?: string; device?: boolean; wait?: Wa
   say()
   await checkAccount(session, interactive, opts.wait)
   const repo = await pickRepository(session, cwd, interactive, opts.wait)
-  if (names.length) { say(); howToScan(names, repo) }
+  if (names.length) { say(); howToScan(names, repo, session.account) }
   say()
   return failed
 }

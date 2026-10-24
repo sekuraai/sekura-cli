@@ -48,11 +48,15 @@ test('startScan is told to carry the disclosureVersion and amountCents the quote
   assert.doesNotMatch(SKILL, /call the same tool again/, 'the old one-tool preview contract is gone')
 })
 
-test('neither the skill nor the README mentions a free scan, except to rule it out', () => {
-  assert.ok(SKILL.includes('Through this connection a scan is Sekura Once at the quoted price. Do not mention or offer any free scan.'))
-  const rest = SKILL.replace('Do not mention or offer any free scan.', '')
-  assert.doesNotMatch(rest, /free (first )?scan/i)
-  assert.doesNotMatch(README, /free (first )?scan/i)
+test('the skill and the README give the connector price and say the free scan is web-only (CEO Q4)', () => {
+  for (const [name, text] of [['skill', SKILL], ['README', README]]) {
+    assert.match(text, /Sekura Once at \$200/, name)
+    assert.match(text, /first scan is free only when (you start it yourself|the user starts it themselves) on the website/, name)
+    assert.ok(text.includes('https://sekura.ai/app/start'), name)
+    for (const m of text.matchAll(/[^.\n]*free (first )?scan[^.\n]*/gi)) assert.match(m[0], /website|Never offer|about a free scan/i, `${name}: ${m[0]}`)
+  }
+  assert.ok(SKILL.includes('Never offer or start a free scan through this connection.'))
+  assert.ok(SKILL.includes('support@sekura.ai'))
 })
 
 const URL_ = process.env.SEKURA_TOOLS_LIST_URL?.trim()

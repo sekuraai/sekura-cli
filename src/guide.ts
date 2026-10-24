@@ -13,6 +13,7 @@ import { carriesKey, nextStep, onPath, SERVER_NAME, type Tool } from './catalogu
 import type { Step } from './plan.js'
 import { currentGithubRepo } from './repo.js'
 import { SITE, siteUrl } from './endpoint.js'
+import { FREE_SCAN_URL, ONCE_PRICE } from './offer.js'
 import { cross, dot, say, tick, waitFor, type Wait } from './ui.js'
 
 const START = siteUrl('/app/start')
@@ -229,11 +230,12 @@ export function nextSteps(tools: Tool[]): void {
 }
 
 /** How to ask for a scan from each connected tool. */
-export function howToScan(tools: string[], repo: string | null): void {
+export function howToScan(tools: string[], repo: string | null, account?: Account | null): void {
   const target = repo ?? 'owner/repo'
-  say('  To scan from your coding tool (every scan is quoted first and starts only after you agree):')
+  say(`  To scan from your coding tool (Sekura Once, ${ONCE_PRICE} a scan, quoted first and started only after you agree):`)
   for (const name of tools) {
     if (name === 'Claude Code') say(`${dot} ${name}: /${SERVER_NAME} scan ${target}    (/${SERVER_NAME} help lists every command)`)
     else say(`${dot} ${name}: ask "scan ${target} with Sekura"`)
   }
+  if (account?.freeScanAvailable !== false) say(`  Your first scan is free only when you start it yourself on the website: ${account?.links?.start ?? FREE_SCAN_URL}`)
 }

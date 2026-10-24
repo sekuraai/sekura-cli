@@ -26,7 +26,9 @@ Sekura is an AI red team as a service: it scans a GitHub repository you have gra
    Each wait shows a one-line spinner, stops after five minutes, and Enter skips it.
 8. **Tells you the next step in each tool**, such as "Cursor: restart Cursor (or reload MCP servers in Settings → MCP)" or "Claude Code: start a new Claude Code session, then type /sekura", and what to type to scan, such as `/sekura scan owner/repo` (`/sekura help` lists every command).
 
-Every scan you then ask for in your coding tool is quoted first, with the price and the authorization wording, and starts only after you agree.
+## What a scan costs
+
+A scan started through the Sekura CLI, the MCP server or a coding tool is **Sekura Once at $200**. It is quoted first, with the price and the authorization wording, and starts only after you agree. Your first scan is free only when you start it yourself on the website, at [sekura.ai/app/start](https://sekura.ai/app/start). A recurring plan is Sekura Always, quoted the same way.
 
 ## Flags
 
@@ -108,6 +110,10 @@ Review before running: the source is this repository, the package is [`sekura` o
 ## Every tool, by hand
 
 The page at [sekura.ai/connect](https://sekura.ai/connect/) has the file or screen for every tool, including the ones this installer cannot reach (claude.ai, Replit, Lovable, Bolt, v0, and the rest).
+
+## Help
+
+Write to [support@sekura.ai](mailto:support@sekura.ai).
 
 ## Licence
 

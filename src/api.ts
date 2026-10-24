@@ -39,6 +39,7 @@ export type Account = {
   email?: string
   termsAccepted?: boolean
   emailVerified?: boolean
+  freeScanAvailable?: boolean
   installations?: number
   links?: { dashboard?: string; start?: string; settings?: string; scans?: string }
 }

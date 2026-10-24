@@ -32,13 +32,14 @@ const { statusCommand } = await import('./commands/status.js')
 const { uninstallCommand } = await import('./commands/uninstall.js')
 const { loginCommand, logoutCommand } = await import('./commands/login.js')
 const { DOCS } = await import('./catalogue.js')
+const { FREE_LINE, PRICE_LINE, SUPPORT } = await import('./offer.js')
 
 const { version } = createRequire(import.meta.url)('../package.json') as { version: string }
 
 const program = new Command()
 program
   .name('sekura')
-  .description(`Connect your coding tool to Sekura.\n\n  npx sekura@latest init    (a bare npx sekura@latest runs init too)\n\nDocumentation: ${DOCS}`)
+  .description(`Connect your coding tool to Sekura.\n\n  npx sekura@latest init    (a bare npx sekura@latest runs init too)\n\n${PRICE_LINE}\n${FREE_LINE}\n\nDocumentation: ${DOCS}\nSupport: ${SUPPORT}`)
   .version(version)
   .option(`${ENDPOINT_FLAG} <url>`, `the Sekura server to use instead of https://sekura.ai, such as https://dev.sekura.ai or http://127.0.0.1:8787 (also ${ENDPOINT_VAR})`)
   .addCommand(initCommand, { isDefault: true })
@@ -51,5 +52,5 @@ try {
   await program.parseAsync(process.argv)
 } catch (e) {
   if ((e as Error)?.name === 'ExitPromptError') process.exit(130)
-  fail((e as Error).message)
+  fail(`${(e as Error).message}\n  If this keeps happening, write to ${SUPPORT}.`)
 }

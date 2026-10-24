@@ -3,6 +3,7 @@
 // may pipe it.
 
 import { DEFAULT_ORIGIN, ORIGIN, isDefaultOrigin } from './endpoint.js'
+import { FREE_LINE, PRICE_LINE } from './offer.js'
 
 export const say = (s = ''): void => { process.stderr.write(s + '\n') }
 
@@ -14,12 +15,15 @@ export function endpointNotice(): void {
   if (!isDefaultOrigin()) say(`  Using the Sekura server at ${ORIGIN}, not ${DEFAULT_ORIGIN}`)
 }
 
-export function banner(): void {
+export function banner(opts: { login?: boolean } = {}): void {
   say()
   say('  Sekura — connect your coding tool')
   endpointNotice()
-  say('  Every scan is quoted first and started only after you agree.')
-  say('  Sign in once here, and your tools will not ask again.')
+  say(`  ${PRICE_LINE}`)
+  say(`  ${FREE_LINE}`)
+  say(opts.login === false
+    ? '  Each tool asks you to sign in to Sekura the first time it uses it.'
+    : '  Sign in once here, and the tools that take a key will not ask again.')
   say()
 }
 

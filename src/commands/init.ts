@@ -54,7 +54,7 @@ export function summary(o: { names: string[]; scope: Scope; skill: boolean; sign
 export async function runInit(opts: InitOptions): Promise<{ written: number; byHand: number; failed: number }> {
   const interactive = !opts.yes && !!process.stdin.isTTY && !!process.stderr.isTTY
   const cwd = opts.cwd ?? process.cwd()
-  banner()
+  banner({ login: opts.login })
 
   // 1. Detect. Every detected tool, user scope, the skill and the sign-in
   // are the defaults; a flag answers its own question.
@@ -215,7 +215,7 @@ export async function runInit(opts: InitOptions): Promise<{ written: number; byH
     say()
     nextSteps(connected)
     say()
-    howToScan([...signIns.keys()], repo)
+    howToScan([...signIns.keys()], repo, session?.account)
     say()
   }
   say(`  Documentation and every other tool: ${DOCS}`)

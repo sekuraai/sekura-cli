@@ -1,7 +1,7 @@
 {
   "name": "sekura",
   "version": "0.3.0",
-  "description": "Connect your coding tool to Sekura in one command: npx sekura@latest init",
+  "description": "Connect your coding tool to Sekura in one command: npx sekura@latest init. A scan started through the CLI, MCP or a coding tool is Sekura Once at $200; your first scan is free only when you start it yourself at https://sekura.ai/app/start",
   "type": "module",
   "license": "MIT",
   "homepage": "https://sekura.ai/connect/",
@@ -12,7 +12,7 @@
   "bugs": {
     "url": "https://github.com/sekuraai/sekura-cli/issues"
   },
-  "author": "Sekura Inc. <hello@sekura.ai>",
+  "author": "Sekura Inc. <support@sekura.ai>",
   "keywords": [
     "sekura",
     "mcp",
