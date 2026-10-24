@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { ENDPOINT, home, onPath } from './catalogue.js'
 import { DEFAULT_ORIGIN, ORIGIN, SITE } from './endpoint.js'
+import { reach, refusal } from './errors.js'
 import { DEVICE_GRANT, deviceSignIn, remoteSession, type DeviceShown, type Poll } from './device.js'
 
 export const ISSUER = ORIGIN
@@ -146,9 +147,9 @@ export async function listen(state: string, timeoutMs: number): Promise<{ redire
 // ── the flow ───────────────────────────────────────────────────────────────
 
 async function post(path: string, body: string, type: string): Promise<Record<string, unknown>> {
-  const r = await fetch(`${ISSUER}${path}`, { method: 'POST', headers: { 'content-type': type, accept: 'application/json' }, body })
+  const r = await reach(`${ISSUER}${path}`, { method: 'POST', headers: { 'content-type': type, accept: 'application/json' }, body })
   const data = (await r.json().catch(() => ({}))) as Record<string, unknown>
-  if (!r.ok) throw new Error(`${SITE} refused the sign-in (${path}): ${data.error_description || data.error || r.status}`)
+  if (!r.ok) throw new Error(refusal(data, r.status))
   return data
 }
 

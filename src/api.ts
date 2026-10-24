@@ -5,6 +5,7 @@
 // the coding tool.
 
 import { ENDPOINT } from './catalogue.js'
+import { reach, serverTrouble } from './errors.js'
 
 export class SignedOut extends Error {
   constructor(detail: string) { super(detail); this.name = 'SignedOut' }
@@ -13,7 +14,7 @@ export class SignedOut extends Error {
 let nextId = 1
 
 export async function callTool<T = Record<string, unknown>>(key: string, name: string, args: Record<string, unknown> = {}): Promise<T> {
-  const r = await fetch(ENDPOINT, {
+  const r = await reach(ENDPOINT, {
     method: 'POST',
     headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
     body: JSON.stringify({ jsonrpc: '2.0', id: nextId++, method: 'tools/call', params: { name, arguments: args } }),
@@ -21,8 +22,9 @@ export async function callTool<T = Record<string, unknown>>(key: string, name: s
   })
   const body = (await r.json().catch(() => null)) as Record<string, any> | null
   if (r.status === 401) throw new SignedOut(body?.error_description || 'the key is no longer valid')
-  if (!r.ok || !body) throw new Error(`Sekura answered ${r.status} to ${name}${body?.error_description ? `: ${body.error_description}` : ''}`)
-  if (body.error) throw new Error(`Sekura ${name}: ${body.error.message ?? JSON.stringify(body.error)}`)
+  if (r.status >= 500 || (!r.ok && !body?.error_description)) throw new Error(serverTrouble(r.status))
+  if (!r.ok || !body) throw new Error(`Sekura did not answer ${name}${body?.error_description ? `: ${body.error_description}` : ''}`)
+  if (body.error) throw new Error(`Sekura could not answer ${name}${typeof body.error.message === 'string' ? `: ${body.error.message}` : ''}`)
   const result = body.result ?? {}
   if (result.isError) throw new Error(`Sekura ${name}: ${result.content?.[0]?.text ?? 'failed'}`)
   if (result.structuredContent) return result.structuredContent as T

@@ -99,7 +99,7 @@ test('over SSH, signIn registers one client for both grants and signs in with th
   assert.deepEqual(seen[0].body.redirect_uris, ['http://127.0.0.1/callback'])
   assert.equal(seen[1].body.client_id, 'client-2')
   assert.deepEqual(why, ['SSH_CONNECTION is set'])
-  assert.deepEqual(shown, [{ userCode: 'ABCD-EFGH', uri: CODE.verification_uri, complete: CODE.verification_uri_complete }])
+  assert.deepEqual(shown, [{ userCode: 'ABCD-EFGH', uri: CODE.verification_uri, complete: CODE.verification_uri_complete, expiresIn: CODE.expires_in }])
 })
 
 test('--device is used on any machine; what is printed names the page and the code, never the device_code', async () => {

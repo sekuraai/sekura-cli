@@ -13,6 +13,7 @@
 
 import { ENDPOINT } from './catalogue.js'
 import { ORIGIN, SITE } from './endpoint.js'
+import { reach, refusal } from './errors.js'
 
 export const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 
@@ -43,9 +44,9 @@ const form = (o: Record<string, string>) => ({
 })
 
 export async function startDeviceAuthorization(clientId: string): Promise<DeviceCode> {
-  const r = await fetch(`${ISSUER}/oauth/device_authorization`, form({ client_id: clientId, scope: 'read write', resource: ENDPOINT }))
+  const r = await reach(`${ISSUER}/oauth/device_authorization`, form({ client_id: clientId, scope: 'read write', resource: ENDPOINT }))
   const data = (await r.json().catch(() => ({}))) as Record<string, unknown>
-  if (!r.ok) throw new Error(`${SITE} refused the sign-in (/oauth/device_authorization): ${data.error_description || data.error || r.status}`)
+  if (!r.ok) throw new Error(refusal(data, r.status))
   if (typeof data.device_code !== 'string' || typeof data.user_code !== 'string' || typeof data.verification_uri !== 'string') {
     throw new Error(`${SITE} answered the device sign-in without a code`)
   }
@@ -92,16 +93,16 @@ export async function pollDeviceToken(clientId: string, code: DeviceCode, opts: 
       case 'slow_down': interval += 5000; continue
       case 'access_denied': throw new Error(`the sign-in was denied on ${SITE}`)
       case 'expired_token': throw new Error('the code expired before it was approved; run the command again for a new one')
-      default: throw new Error(`${SITE} refused the sign-in (/oauth/token): ${data.error_description || data.error || r.status}`)
+      default: throw new Error(refusal(data, r.status))
     }
   }
 }
 
 /** What the person is shown: the page, the code, and the page with the code in it. */
-export type DeviceShown = { userCode: string; uri: string; complete?: string }
+export type DeviceShown = { userCode: string; uri: string; complete?: string; expiresIn?: number }
 
 export async function deviceSignIn(clientId: string, opts: Poll & { onCode?: (c: DeviceShown) => void } = {}): Promise<string> {
   const code = await startDeviceAuthorization(clientId)
-  opts.onCode?.({ userCode: code.user_code, uri: code.verification_uri, complete: code.verification_uri_complete })
+  opts.onCode?.({ userCode: code.user_code, uri: code.verification_uri, complete: code.verification_uri_complete, expiresIn: code.expires_in })
   return pollDeviceToken(clientId, code, opts)
 }
