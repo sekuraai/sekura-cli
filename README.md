@@ -76,9 +76,9 @@ The address must be `https://`, or `http://` for `127.0.0.1` or `localhost` only
 
 | Tool | User scope | Project scope |
 |---|---|---|
-| Claude Code | `claude mcp add --transport http -s user sekura …`, or `~/.claude.json` → `mcpServers.sekura` | `.mcp.json` |
+| Claude Code | `claude mcp add --transport http -s user sekura …`, or `~/.claude.json` → `mcpServers.sekura` (always the file when it carries your key) | `.mcp.json` |
 | Cursor | `~/.cursor/mcp.json` → `mcpServers.sekura` | `.cursor/mcp.json` |
-| GitHub Copilot (VS Code) | the VS Code user `mcp.json` → `servers.sekura` | `.mcp.json` |
+| GitHub Copilot in VS Code | the VS Code user `mcp.json` → `servers.sekura` | `.mcp.json` |
 | OpenAI Codex | `codex mcp add sekura --url …`, or `~/.codex/config.toml` → `[mcp_servers.sekura]` | — |
 | Kiro | `~/.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` |
 | Cline | `~/.cline/data/settings/cline_mcp_settings.json` (shared by the extension, v4 and later, and the Cline CLI) | — |
@@ -98,7 +98,7 @@ The skill goes to `~/.agents/skills/sekura/SKILL.md` and, when Claude Code is pr
 
 ## Your key
 
-Signing in creates one Sekura key, named "Sekura CLI (your computer's name)", whichever way you signed in (browser or code). The CLI saves it in `~/.config/sekura/credentials.json` (under `$XDG_CONFIG_HOME` when that is set), readable by you only, and writes it as an `Authorization: Bearer` header into each tool's user configuration. `SEKURA_API_KEY` in the environment is used instead of the saved file when it is set. Nothing printed ever shows the whole key.
+Signing in creates one Sekura key, named "Sekura CLI (your computer's name)", whichever way you signed in (browser or code). The CLI saves it in `~/.config/sekura/credentials.json` (under `$XDG_CONFIG_HOME` when that is set) and writes it as an `Authorization: Bearer` header into each tool's user configuration. The key is stored in plain text. Every file the CLI writes it into, its own and each tool's, is set to mode 0600 (readable by you only), and `~/.config/sekura` to 0700; a tool that later rewrites its own file may set its own mode. On Windows the files keep the permissions of your user folder. The key never appears on a command line: for Claude Code it is written into `~/.claude.json` rather than passed to `claude mcp add`. `SEKURA_API_KEY` in the environment is used instead of the saved file when it is set. Nothing printed ever shows the whole key.
 
 - **See or revoke it** at [sekura.ai/app/settings](https://sekura.ai/app/settings) → Agents and API keys. Revoking it there ends it everywhere at once; run `sekura login` for a new one.
 - **`sekura logout`** removes the saved copy. Tools that were given the key keep it.

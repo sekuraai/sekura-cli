@@ -12,11 +12,31 @@
 // at the indent the file already uses; Goose rewrites the file itself, so
 // whether the entry is there is read from its fields, not its text.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { ENDPOINT, PENDING_KEY, SERVER_NAME, type Target } from './catalogue.js'
 import { redactAll } from './auth.js'
+
+export const SECRET_MODE = 0o600
+
+export function writeConfig(path: string, text: string, secret: boolean): void {
+  const real = existsSync(path) ? realpathSync(path) : path
+  mkdirSync(dirname(real), { recursive: true })
+  const before = existsSync(real) ? statSync(real).mode & 0o777 : null
+  const mode = secret ? SECRET_MODE : before
+  const temp = `${real}.sekura-${process.pid}-${randomBytes(4).toString('hex')}.tmp`
+  try {
+    writeFileSync(temp, text, { mode: mode ?? 0o666, flag: 'wx' })
+    if (mode !== null) chmodSync(temp, mode)
+    renameSync(temp, real)
+  } catch {
+    rmSync(temp, { force: true })
+    writeFileSync(real, text, mode === null ? {} : { mode })
+    if (mode !== null) try { chmodSync(real, mode) } catch {}
+  }
+}
 
 export type Outcome =
   | { status: 'written' | 'unchanged' | 'removed' | 'absent' | 'ran'; where: string }
@@ -73,8 +93,7 @@ export function applyJson(t: Extract<Target, { kind: 'json' }>): Outcome {
   if (current && JSON.stringify(current) === JSON.stringify(t.entry)) return { status: 'unchanged', where: t.path }
   servers[SERVER_NAME] = t.entry
   r.data[t.key] = servers
-  mkdirSync(dirname(t.path), { recursive: true })
-  writeFileSync(t.path, JSON.stringify(r.data, null, r.indent) + (r.trailingNewline ? '\n' : ''))
+  writeConfig(t.path, JSON.stringify(r.data, null, r.indent) + (r.trailingNewline ? '\n' : ''), !!keyOf(t))
   return { status: 'written', where: t.path }
 }
 
@@ -84,7 +103,7 @@ export function removeJson(t: Extract<Target, { kind: 'json' }>): Outcome {
   const servers = r.data[t.key] as Record<string, unknown> | undefined
   if (!servers || !(SERVER_NAME in servers)) return { status: 'absent', where: t.path }
   delete servers[SERVER_NAME]
-  writeFileSync(t.path, JSON.stringify(r.data, null, r.indent) + (r.trailingNewline ? '\n' : ''))
+  writeConfig(t.path, JSON.stringify(r.data, null, r.indent) + (r.trailingNewline ? '\n' : ''), false)
   return { status: 'removed', where: t.path }
 }
 
@@ -118,12 +137,11 @@ export function applyToml(t: Extract<Target, { kind: 'toml' }>): Outcome {
     const current = text.slice(span[0], span[1]).trim()
     if (current === block.trim()) return { status: 'unchanged', where: t.path }
     const out = text.slice(0, span[0]) + block + (text.slice(span[1]).startsWith('\n') ? '' : '\n') + text.slice(span[1])
-    writeFileSync(t.path, out)
+    writeConfig(t.path, out, !!keyOf(t))
     return { status: 'written', where: t.path }
   }
-  mkdirSync(dirname(t.path), { recursive: true })
   const sep = !text ? '' : text.endsWith('\n\n') ? '' : text.endsWith('\n') ? '\n' : '\n\n'
-  writeFileSync(t.path, text + sep + block)
+  writeConfig(t.path, text + sep + block, !!keyOf(t))
   return { status: 'written', where: t.path }
 }
 
@@ -132,7 +150,7 @@ export function removeToml(t: Extract<Target, { kind: 'toml' }>): Outcome {
   const text = readFileSync(t.path, 'utf8')
   const span = tomlSpan(text, t.table)
   if (!span) return { status: 'absent', where: t.path }
-  writeFileSync(t.path, (text.slice(0, span[0]) + text.slice(span[1])).replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '\n'))
+  writeConfig(t.path, (text.slice(0, span[0]) + text.slice(span[1])).replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '\n'), false)
   return { status: 'removed', where: t.path }
 }
 
@@ -217,8 +235,7 @@ export function applyYaml(t: YamlTarget): Outcome {
   } else {
     out = [...lines.slice(0, at.end), ...splitLines(yamlBlock(t, at.indent)), ...lines.slice(at.end)]
   }
-  mkdirSync(dirname(t.path), { recursive: true })
-  writeFileSync(t.path, out.join('\n') + '\n')
+  writeConfig(t.path, out.join('\n') + '\n', !!keyOf(t))
   return { status: 'written', where: t.path }
 }
 
@@ -232,7 +249,7 @@ export function removeYaml(t: YamlTarget): Outcome {
   // A mapping left with nothing under it reads as null, which Goose refuses.
   const rest = [...lines.slice(at.head + 1, a), ...lines.slice(b, at.end)]
   if (!rest.some((l) => !blank(l))) out[at.head] = `${t.key}: {}`
-  writeFileSync(t.path, out.join('\n') + '\n')
+  writeConfig(t.path, out.join('\n') + '\n', false)
   return { status: 'removed', where: t.path }
 }
 

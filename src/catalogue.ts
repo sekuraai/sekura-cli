@@ -122,7 +122,7 @@ export const TOOLS: Tool[] = [
     id: 'tools-claude', name: 'Claude Code',
     detect: (h) => existsSync(join(h, '.claude')) || existsSync(join(h, '.claude.json')) || onPath('claude'),
     user: (h, key) => [
-      { kind: 'command', bin: 'claude', add: ['mcp', 'add', '--transport', 'http', '-s', 'user', SERVER_NAME, ENDPOINT, ...(key ? ['--header', `Authorization: Bearer ${key}`] : [])], remove: ['mcp', 'remove', '-s', 'user', SERVER_NAME], get: ['mcp', 'get', SERVER_NAME] },
+      ...(key ? [] : [{ kind: 'command' as const, bin: 'claude', add: ['mcp', 'add', '--transport', 'http', '-s', 'user', SERVER_NAME, ENDPOINT], remove: ['mcp', 'remove', '-s', 'user', SERVER_NAME], get: ['mcp', 'get', SERVER_NAME] }]),
       { kind: 'json', path: join(h, '.claude.json'), key: 'mcpServers', entry: { ...http, ...auth(key) } },
     ],
     project: (cwd) => [{ kind: 'json', path: join(cwd, '.mcp.json'), key: 'mcpServers', entry: http }],
@@ -221,7 +221,7 @@ export const TOOLS: Tool[] = [
     next: `start a new tabnine session.`,
   },
   {
-    id: 'tools-devin', name: 'Devin Desktop and CLI',
+    id: 'tools-devin', name: 'Devin Desktop and the Devin CLI',
     detect: () => onPath('devin'),
     user: () => [{ kind: 'command', bin: 'devin', add: ['mcp', 'add', SERVER_NAME, ENDPOINT], remove: ['mcp', 'remove', SERVER_NAME] }],
     signIn: `run devin mcp login ${SERVER_NAME}.`,

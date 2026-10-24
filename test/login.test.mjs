@@ -5,7 +5,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync, readdirSync, chmodSync, symlinkSync, lstatSync } from 'node:fs'
 import { tmpdir, platform } from 'node:os'
 import { join } from 'node:path'
 
@@ -83,6 +83,38 @@ test('init --yes with a saved key writes it into every user entry that takes a h
   assert.match(said, /Your first scan is free only when you start it yourself on the website: https:\/\/sekura\.ai\/app\/start/)
   assert.match(said, /Next, in each tool:/)
   assert.match(said, /Cursor: restart Cursor/)
+})
+
+test('every file the key is written into is readable by its owner only (CLI-1)', { skip: platform() === 'win32' }, () => {
+  const mode = (p) => statSync(p).mode & 0o777
+  for (const p of [join(HOME, '.claude.json'), join(HOME, '.cursor', 'mcp.json'), join(codeUserDir(HOME), 'mcp.json'), join(HOME, '.cline', 'data', 'settings', 'cline_mcp_settings.json'), join(HOME, '.kiro', 'settings', 'mcp.json'), join(HOME, '.config', 'opencode', 'opencode.json'), join(gooseDir(HOME), 'config.yaml')]) {
+    assert.equal(mode(p), 0o600, p)
+  }
+  assert.equal(mode(join(HOME, '.config', 'sekura')), 0o700)
+  assert.deepEqual(readdirSync(join(HOME, '.cursor')).filter((f) => f.endsWith('.tmp')), [], 'no temp file is left behind')
+})
+
+test('the key never goes on a command line: Claude Code gets ~/.claude.json with a key (CLI-5)', async () => {
+  const { toolById } = await import('../dist/catalogue.js')
+  const keyed = toolById('tools-claude').user(HOME, KEY)
+  assert.ok(keyed.every((t) => t.kind !== 'command'))
+  assert.equal(toolById('tools-claude').user(HOME)[0].kind, 'command')
+})
+
+test('a symlinked config stays a symlink, and a file without the key keeps its mode', { skip: platform() === 'win32' }, async () => {
+  const { writeConfig } = await import('../dist/writers.js')
+  const dir = mkdtempSync(join(tmpdir(), 'sekura-link-'))
+  const target = join(dir, 'real.json')
+  writeFileSync(target, '{}\n')
+  chmodSync(target, 0o640)
+  symlinkSync(target, join(dir, 'link.json'))
+  writeConfig(join(dir, 'link.json'), '{"a":1}\n', false)
+  assert.ok(lstatSync(join(dir, 'link.json')).isSymbolicLink())
+  assert.equal(read(target), '{"a":1}\n')
+  assert.equal(statSync(target).mode & 0o777, 0o640)
+  writeConfig(join(dir, 'link.json'), '{"b":2}\n', true)
+  assert.equal(statSync(target).mode & 0o777, 0o600)
+  rmSync(dir, { recursive: true, force: true })
 })
 
 test('a rerun with the same key changes no byte; a new key is written over the old', async () => {

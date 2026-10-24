@@ -47,6 +47,7 @@ export function readKey(): string | null {
 export function saveKey(key: string, email?: string): string {
   const p = credentialsPath()
   mkdirSync(dirname(p), { recursive: true, mode: 0o700 })
+  try { chmodSync(dirname(p), 0o700) } catch {}
   writeFileSync(p, JSON.stringify({ key, ...(email ? { email } : {}), createdAt: new Date().toISOString(), endpoint: ENDPOINT }, null, 2) + '\n', { mode: 0o600 })
   try { chmodSync(p, 0o600) } catch { /* Windows */ }
   return p
