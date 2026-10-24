@@ -40,6 +40,7 @@ Every scan you then ask for in your coding tool is quoted first, with the price 
 | `--device` | Sign in with a code on another device. The default over SSH (`SSH_CONNECTION`, `SSH_TTY`), in Codespaces, devcontainers (`REMOTE_CONTAINERS`) and Gitpod. `sekura login` takes it too. |
 | `--dry-run` | Show the plan and change nothing. Never signs in and needs no key. |
 | `--no-verify` | Don't check that the Sekura server answers. |
+| `--endpoint <url>` | Use another Sekura server instead of `https://sekura.ai`, such as `https://dev.sekura.ai` or a local one at `http://127.0.0.1:8787`. The same as setting `SEKURA_ENDPOINT`. Works with every command. |
 
 Project scope never writes the key, because project files get committed.
 
@@ -57,6 +58,17 @@ npx sekura@latest logout                # forget the saved key
 npx sekura@latest uninstall             # remove the entries, the skill, the guidance block and the saved key
 SEKURA_API_KEY=sek_live_… npx sekura@latest init --yes   # unattended, with a key from Settings
 ```
+
+## Another Sekura server
+
+`SEKURA_ENDPOINT` (or `--endpoint`) points the sign-in, the server check, the links and the address written into each tool at another Sekura server:
+
+```bash
+SEKURA_ENDPOINT=https://dev.sekura.ai npx sekura@latest init
+npx sekura@latest init --endpoint http://127.0.0.1:8787
+```
+
+The address must be `https://`, or `http://` for `127.0.0.1` or `localhost` only (use `127.0.0.1` for a local server). The default is `https://sekura.ai`. A key from another server is kept in its own file beside `credentials.json`, and a key saved for one server is never sent to another. Run `sekura init` again without the override to point your tools back at `https://sekura.ai`.
 
 ## What it writes
 

@@ -7,13 +7,14 @@ import { buildPlan, detectTools, stepPresent, type Scope } from '../plan.js'
 import { readKey, redact } from '../auth.js'
 import { getAccount, SignedOut } from '../api.js'
 import { verifyEndpoint } from '../verify.js'
-import { cross, dot, say, tick } from '../ui.js'
+import { cross, dot, endpointNotice, say, tick } from '../ui.js'
 
 export async function runStatus(opts: { scope?: Scope; cwd?: string; verify?: boolean }): Promise<void> {
   const cwd = opts.cwd ?? process.cwd()
   const scope = opts.scope ?? 'user'
   const detected = detectTools(cwd)
   say()
+  endpointNotice()
   if (!detected.length) say('  No supported coding tool found on this machine.')
   const key = readKey()
   const plan = buildPlan({ tools: detected.map((t) => t.id), scope, skill: true, cwd, key })

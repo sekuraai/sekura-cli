@@ -12,10 +12,11 @@ import { getAccount, listRepositories, SignedOut, type Account, type Repository 
 import { carriesKey, nextStep, onPath, SERVER_NAME, type Tool } from './catalogue.js'
 import type { Step } from './plan.js'
 import { currentGithubRepo } from './repo.js'
+import { SITE, siteUrl } from './endpoint.js'
 import { cross, dot, say, tick, waitFor, type Wait } from './ui.js'
 
-const START = 'https://sekura.ai/app/start'
-const DASHBOARD = 'https://sekura.ai/app'
+const START = siteUrl('/app/start')
+const DASHBOARD = siteUrl('/app')
 
 export type Session = { key: string; account: Account | null }
 
@@ -59,7 +60,7 @@ export async function signInHere(opts: { device?: boolean } = {}): Promise<Sessi
         say(`  On any device, open ${c.uri} and enter ${c.userCode}`)
         if (c.complete) say(`  Or open ${c.complete}`)
         say()
-        say('  Waiting for you to approve on sekura.ai…')
+        say(`  Waiting for you to approve on ${SITE}…`)
       },
     })
     let account: Account | null = null
@@ -84,7 +85,7 @@ const accountReady = (a: Account) => a.termsAccepted !== false && a.emailVerifie
 
 /** Asks Sekura until the Terms are accepted and the email verified. */
 export async function waitForAccount(s: Session, wait: Wait = {}): Promise<boolean> {
-  const r = await waitFor('Waiting for the Terms and your email on sekura.ai… press Enter to skip', async () => {
+  const r = await waitFor(`Waiting for the Terms and your email on ${SITE}… press Enter to skip`, async () => {
     const a = await getAccount(s.key)
     s.account = a
     return accountReady(a)
@@ -101,8 +102,8 @@ export async function checkAccount(s: Session, interactive: boolean, wait: Wait 
   if (a.emailVerified === false) todo.push('verify your email')
   if (!todo.length) return
   const page = a.links?.dashboard ?? DASHBOARD
-  say(`${dot} Before a scan can start, ${todo.join(' and ')} on sekura.ai: ${page}`)
-  if (!interactive || !(await confirm({ message: 'Open sekura.ai to do that now?', default: true }))) return
+  say(`${dot} Before a scan can start, ${todo.join(' and ')} on ${SITE}: ${page}`)
+  if (!interactive || !(await confirm({ message: `Open ${SITE} to do that now?`, default: true }))) return
   openBrowser(page)
   if (await waitForAccount(s, wait)) say(`${tick} Your Sekura account is ready`)
   else say(`${dot} Not done yet; finish it at ${page} before your first scan.`)
@@ -155,7 +156,7 @@ export async function pickRepository(s: Session, cwd: string, interactive: boole
       const go = await select({
         message: repos.length ? `Give Sekura access to ${here}?` : 'Install the Sekura GitHub App?',
         choices: [
-          { name: 'Yes, open sekura.ai (the GitHub App asks which repositories)', value: true },
+          { name: `Yes, open ${SITE} (the GitHub App asks which repositories)`, value: true },
           { name: repos.length ? 'No, pick from the repositories Sekura can already scan' : 'Not now', value: false },
         ],
       })

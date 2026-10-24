@@ -9,6 +9,7 @@ import { confirm } from '@inquirer/prompts'
 import { buildPlan, describeStep, detectTools, removeStep, type Scope } from '../plan.js'
 import { credentialsPath, forgetKey } from '../auth.js'
 import { cross, dot, say, tick } from '../ui.js'
+import { siteUrl } from '../endpoint.js'
 
 export async function runUninstall(opts: { yes?: boolean; keepSkill?: boolean; keepLogin?: boolean; scope?: Scope; cwd?: string }): Promise<number> {
   const cwd = opts.cwd ?? process.cwd()
@@ -34,7 +35,7 @@ export async function runUninstall(opts: { yes?: boolean; keepSkill?: boolean; k
   }
   if (!opts.keepLogin && forgetKey()) say(`${tick} ${credentialsPath()}`)
   say()
-  say('  To end the connection on Sekura\'s side too: https://sekura.ai/app/settings → Agents and API keys.')
+  say(`  To end the connection on Sekura's side too: ${siteUrl('/app/settings')} → Agents and API keys.`)
   say()
   return failed
 }

@@ -2,15 +2,22 @@
 // the same in every terminal and in a log. stdout stays empty: the person
 // may pipe it.
 
+import { DEFAULT_ORIGIN, ORIGIN, isDefaultOrigin } from './endpoint.js'
+
 export const say = (s = ''): void => { process.stderr.write(s + '\n') }
 
 export const tick = '  ✓'
 export const cross = '  ✗'
 export const dot = '  ·'
 
+export function endpointNotice(): void {
+  if (!isDefaultOrigin()) say(`  Using the Sekura server at ${ORIGIN}, not ${DEFAULT_ORIGIN}`)
+}
+
 export function banner(): void {
   say()
   say('  Sekura — connect your coding tool')
+  endpointNotice()
   say('  Every scan is quoted first and started only after you agree.')
   say('  Sign in once here, and your tools will not ask again.')
   say()

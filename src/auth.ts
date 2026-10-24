@@ -21,29 +21,33 @@ import { hostname, platform } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { ENDPOINT, home, onPath } from './catalogue.js'
+import { DEFAULT_ORIGIN, ORIGIN, SITE } from './endpoint.js'
 import { DEVICE_GRANT, deviceSignIn, remoteSession, type DeviceShown, type Poll } from './device.js'
 
-export const ISSUER = new URL(ENDPOINT).origin
+export const ISSUER = ORIGIN
 
 // ── the stored key ─────────────────────────────────────────────────────────
 
-export type Credentials = { key: string; email?: string; createdAt: string }
+export type Credentials = { key: string; email?: string; createdAt: string; endpoint?: string }
 
-export const credentialsPath = (): string => join(process.env.XDG_CONFIG_HOME || join(home(), '.config'), 'sekura', 'credentials.json')
+const credentialsFile = (): string => (ORIGIN === DEFAULT_ORIGIN ? 'credentials.json' : `credentials-${SITE.replace(/[^A-Za-z0-9.-]/g, '_')}.json`)
+
+export const credentialsPath = (): string => join(process.env.XDG_CONFIG_HOME || join(home(), '.config'), 'sekura', credentialsFile())
 
 export function readKey(): string | null {
   const env = process.env.SEKURA_API_KEY?.trim()
   if (env) return env
   try {
     const c = JSON.parse(readFileSync(credentialsPath(), 'utf8')) as Credentials
+    if ((c.endpoint ?? `${DEFAULT_ORIGIN}/mcp`) !== ENDPOINT) return null
     return typeof c.key === 'string' && c.key ? c.key : null
   } catch { return null }
 }
 
 export function saveKey(key: string, email?: string): string {
   const p = credentialsPath()
-  mkdirSync(dirname(p), { recursive: true })
-  writeFileSync(p, JSON.stringify({ key, ...(email ? { email } : {}), createdAt: new Date().toISOString() }, null, 2) + '\n', { mode: 0o600 })
+  mkdirSync(dirname(p), { recursive: true, mode: 0o700 })
+  writeFileSync(p, JSON.stringify({ key, ...(email ? { email } : {}), createdAt: new Date().toISOString(), endpoint: ENDPOINT }, null, 2) + '\n', { mode: 0o600 })
   try { chmodSync(p, 0o600) } catch { /* Windows */ }
   return p
 }
@@ -143,7 +147,7 @@ export async function listen(state: string, timeoutMs: number): Promise<{ redire
 async function post(path: string, body: string, type: string): Promise<Record<string, unknown>> {
   const r = await fetch(`${ISSUER}${path}`, { method: 'POST', headers: { 'content-type': type, accept: 'application/json' }, body })
   const data = (await r.json().catch(() => ({}))) as Record<string, unknown>
-  if (!r.ok) throw new Error(`sekura.ai refused the sign-in (${path}): ${data.error_description || data.error || r.status}`)
+  if (!r.ok) throw new Error(`${SITE} refused the sign-in (${path}): ${data.error_description || data.error || r.status}`)
   return data
 }
 
@@ -158,7 +162,7 @@ export async function register(): Promise<string> {
     response_types: ['code'],
   }), 'application/json')
   const clientId = String(reg.client_id ?? '')
-  if (!clientId) throw new Error('sekura.ai did not register the CLI')
+  if (!clientId) throw new Error(`${SITE} did not register the CLI`)
   return clientId
 }
 
@@ -207,7 +211,7 @@ export async function signIn(opts: SignInOptions = {}): Promise<string> {
       client_id: clientId, redirect_uri: cb.redirectUri, resource: ENDPOINT,
     }).toString(), 'application/x-www-form-urlencoded')
     const key = String(tok.access_token ?? '')
-    if (!key) throw new Error('sekura.ai answered without a key')
+    if (!key) throw new Error(`${SITE} answered without a key`)
     return key
   } finally {
     cb.close()

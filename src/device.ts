@@ -12,10 +12,11 @@
 // user_code is meant for eyes.
 
 import { ENDPOINT } from './catalogue.js'
+import { ORIGIN, SITE } from './endpoint.js'
 
 export const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
 
-const ISSUER = new URL(ENDPOINT).origin
+const ISSUER = ORIGIN
 
 /** The variables that say this terminal is not on the machine with the
  *  browser. The first one set is named, so the person hears why. */
@@ -44,9 +45,9 @@ const form = (o: Record<string, string>) => ({
 export async function startDeviceAuthorization(clientId: string): Promise<DeviceCode> {
   const r = await fetch(`${ISSUER}/oauth/device_authorization`, form({ client_id: clientId, scope: 'read write', resource: ENDPOINT }))
   const data = (await r.json().catch(() => ({}))) as Record<string, unknown>
-  if (!r.ok) throw new Error(`sekura.ai refused the sign-in (/oauth/device_authorization): ${data.error_description || data.error || r.status}`)
+  if (!r.ok) throw new Error(`${SITE} refused the sign-in (/oauth/device_authorization): ${data.error_description || data.error || r.status}`)
   if (typeof data.device_code !== 'string' || typeof data.user_code !== 'string' || typeof data.verification_uri !== 'string') {
-    throw new Error('sekura.ai answered the device sign-in without a code')
+    throw new Error(`${SITE} answered the device sign-in without a code`)
   }
   return data as unknown as DeviceCode
 }
@@ -82,16 +83,16 @@ export async function pollDeviceToken(clientId: string, code: DeviceCode, opts: 
     const data = (await r.json().catch(() => ({}))) as Record<string, unknown>
     if (r.ok) {
       const key = String(data.access_token ?? '')
-      if (!key) throw new Error('sekura.ai answered without a key')
+      if (!key) throw new Error(`${SITE} answered without a key`)
       return key
     }
     if (r.status >= 500) continue
     switch (data.error) {
       case 'authorization_pending': continue
       case 'slow_down': interval += 5000; continue
-      case 'access_denied': throw new Error('the sign-in was declined on sekura.ai')
+      case 'access_denied': throw new Error(`the sign-in was denied on ${SITE}`)
       case 'expired_token': throw new Error('the code expired before it was approved; run the command again for a new one')
-      default: throw new Error(`sekura.ai refused the sign-in (/oauth/token): ${data.error_description || data.error || r.status}`)
+      default: throw new Error(`${SITE} refused the sign-in (/oauth/token): ${data.error_description || data.error || r.status}`)
     }
   }
 }

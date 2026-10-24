@@ -59,7 +59,7 @@ test('pending, then slow_down, then a key: the interval grows by five seconds', 
 
 test('access_denied and expired_token stop with a clear message', async () => {
   stub([() => json(400, { error: 'access_denied' })])
-  await assert.rejects(pollDeviceToken('c', CODE, { sleep: async () => {} }), /declined on sekura\.ai/)
+  await assert.rejects(pollDeviceToken('c', CODE, { sleep: async () => {} }), /denied on sekura\.ai/)
   stub([() => json(400, { error: 'expired_token' })])
   await assert.rejects(pollDeviceToken('c', CODE, { sleep: async () => {} }), /code expired/)
   stub([() => json(400, { error: 'invalid_client', error_description: 'unknown client' })])

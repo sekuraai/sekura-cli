@@ -13,10 +13,11 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { homedir, platform } from 'node:os'
 import { join, delimiter } from 'node:path'
+import { SITE, siteUrl } from './endpoint.js'
 
-export const ENDPOINT = 'https://sekura.ai/mcp'
+export const ENDPOINT = siteUrl('/mcp')
 export const SERVER_NAME = 'sekura'
-export const DOCS = 'https://sekura.ai/connect/'
+export const DOCS = siteUrl('/connect/')
 
 /** The home directory, overridable for tests. */
 export const home = (): string => process.env.SEKURA_HOME || homedir()
@@ -105,7 +106,7 @@ export type Tool = {
  *  refuses to write a target that carries it. */
 export const PENDING_KEY = '<your key, after sign-in>'
 
-const SIGN_IN = 'the first time the tool uses Sekura, a sekura.ai page opens in your browser: sign in with GitHub and approve.'
+const SIGN_IN = `the first time the tool uses Sekura, a ${SITE} page opens in your browser: sign in with GitHub and approve.`
 const url = { url: ENDPOINT }
 const http = { type: 'http', url: ENDPOINT }
 /** The header a key is sent in, as JSON configurations spell it. */

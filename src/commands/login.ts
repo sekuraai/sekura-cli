@@ -10,12 +10,14 @@ import { carriesKey } from '../catalogue.js'
 import { credentialsPath, forgetKey } from '../auth.js'
 import { checkAccount, howToScan, obtainKey, pickRepository, runToolLogins } from '../guide.js'
 import type { Wait } from '../ui.js'
-import { cross, dot, say, tick } from '../ui.js'
+import { cross, dot, endpointNotice, say, tick } from '../ui.js'
+import { siteUrl } from '../endpoint.js'
 
 export async function runLogin(opts: { cwd?: string; device?: boolean; wait?: Wait }): Promise<number> {
   const cwd = opts.cwd ?? process.cwd()
   const interactive = !!(process.stdin.isTTY && process.stderr.isTTY)
   say()
+  endpointNotice()
   const session = await obtainKey({ interactive, device: opts.device })
   if (!session) { say('  Not signed in; nothing was changed.'); say(); return 1 }
 
@@ -59,6 +61,6 @@ export const logoutCommand = new Command('logout')
   .action(() => {
     say()
     say(forgetKey() ? `${tick} Removed ${credentialsPath()}` : `${dot} No saved key at ${credentialsPath()}`)
-    say('  Tools that were given the key keep it until you run sekura uninstall. To end it everywhere: https://sekura.ai/app/settings → Agents and API keys.')
+    say(`  Tools that were given the key keep it until you run sekura uninstall. To end it everywhere: ${siteUrl('/app/settings')} → Agents and API keys.`)
     say()
   })
