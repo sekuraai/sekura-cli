@@ -7,14 +7,14 @@
 
 import { confirm, select } from '@inquirer/prompts'
 import { spawnSync } from 'node:child_process'
-import { forgetKey, openBrowser, readKey, redact, saveKey, signIn } from './auth.js'
+import { credentialsPath, forgetKey, openBrowser, readKey, redact, saveKey, signIn } from './auth.js'
 import { getAccount, listRepositories, SignedOut, type Account, type Repository } from './api.js'
 import { carriesKey, nextStep, onPath, SERVER_NAME, type Tool } from './catalogue.js'
 import type { Step } from './plan.js'
 import { currentGithubRepo } from './repo.js'
 import { SITE, siteUrl } from './endpoint.js'
 import { FREE_SCAN_URL, ONCE_PRICE } from './offer.js'
-import { cross, dot, say, tick, waitFor, type Wait } from './ui.js'
+import { cross, dot, say, spinner, tick, waitFor, type Wait } from './ui.js'
 
 const START = siteUrl('/app/start')
 const DASHBOARD = siteUrl('/app')
@@ -37,7 +37,7 @@ export async function existingSession(): Promise<Session | null> {
     if (!(e instanceof SignedOut)) {
       // Offline, or Sekura did not answer: the key is likely fine, and
       // writing it now saves the person a sign-in later.
-      say(`${dot} Using your saved Sekura key ${redact(existing)}; Sekura could not be asked who it belongs to (${(e as Error).message}).`)
+      say(`${dot} Using ${fromEnv ? 'the key in SEKURA_API_KEY' : `your saved Sekura key (${credentialsPath()})`}, ${redact(existing)}; Sekura could not confirm it: ${(e as Error).message}`)
       return { key: existing, account: null }
     }
     if (fromEnv) { say(`${cross} SEKURA_API_KEY is not a valid Sekura key (${e.message}); it was not used.`); return null }
@@ -51,25 +51,35 @@ export async function existingSession(): Promise<Session | null> {
  *  device. Null when it did not finish; the tools then sign in on their own. */
 export async function signInHere(opts: { device?: boolean } = {}): Promise<Session | null> {
   say()
+  let stop = () => {}
   try {
     const key = await signIn({
       device: opts.device,
-      onUrl: (url) => { say('  Opening your browser to sign in to Sekura with GitHub. If it does not open, go to:'); say(`  ${url}`); say() },
-      onDevice: (why) => say(`  Signing in with a code, because ${why}.`),
+      onUrl: (url) => {
+        say('  Opening your browser to sign in to Sekura with GitHub. If it does not open, go to:')
+        say(`  ${url}`)
+        say()
+        stop = spinner(`Waiting for the sign-in in your browser… up to 5 minutes; Ctrl-C to stop`)
+      },
+      onDevice: (why) => { stop(); say(`  Signing in with a code, because ${why}.`) },
       onCode: (c) => {
+        stop()
         say()
         say(`  On any device, open ${c.uri} and enter ${c.userCode}`)
         if (c.complete) say(`  Or open ${c.complete}`)
         say()
-        say(`  Waiting for you to approve on ${SITE}…`)
+        const minutes = c.expiresIn ? Math.max(1, Math.round(c.expiresIn / 60)) : null
+        stop = spinner(`Waiting for you to approve on ${SITE}…${minutes ? ` the code expires in ${minutes} min;` : ''} Ctrl-C to stop`)
       },
     })
+    stop()
     let account: Account | null = null
     try { account = await getAccount(key) } catch { /* shown below as unknown */ }
     const where = saveKey(key, account?.email)
     say(`${tick} Signed in to Sekura as ${account?.email ?? account?.name ?? 'you'}; the key (${redact(key)}) is kept in ${where}`)
     return { key, account }
   } catch (e) {
+    stop()
     say(`${cross} ${(e as Error).message}`)
     return null
   }
@@ -119,6 +129,8 @@ async function listAll(key: string, quiet = false): Promise<Listing> {
   if (!quiet) for (const i of list.installations) {
     if (i.error === 'github_sign_in_expired') say(`${dot} ${i.account}: GitHub access has expired; sign in at ${DASHBOARD} again to refresh it.`)
     else if (i.error === 'installation_gone') say(`${dot} ${i.account}: the Sekura GitHub App is no longer installed there.`)
+    else if (i.error === 'github_unavailable') say(`${dot} ${i.account}: GitHub did not answer just now; try again in a minute.`)
+    else if (i.error === 'partial') say(`${dot} ${i.account}: GitHub stopped answering part-way, so this list may be incomplete; try again in a minute.`)
   }
   return { repos: list.installations.flatMap((i) => i.repositories) }
 }
@@ -237,5 +249,6 @@ export function howToScan(tools: string[], repo: string | null, account?: Accoun
     if (name === 'Claude Code') say(`${dot} ${name}: /${SERVER_NAME} scan ${target}    (/${SERVER_NAME} help lists every command)`)
     else say(`${dot} ${name}: ask "scan ${target} with Sekura"`)
   }
+  if (!repo) say(`  No repository picked yet: install the Sekura GitHub App and choose repositories at ${account?.links?.start ?? START}`)
   if (account?.freeScanAvailable !== false) say(`  Your first scan is free only when you start it yourself on the website: ${account?.links?.start ?? FREE_SCAN_URL}`)
 }

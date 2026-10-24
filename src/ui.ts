@@ -36,6 +36,21 @@ export const WAIT = { intervalMs: 2500, timeoutMs: 300_000 }
 
 const FRAMES = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
 
+export function spinner(message: string): () => void {
+  if (!process.stderr.isTTY) { say(`  ${message}`); return () => {} }
+  let f = 0
+  const draw = () => { process.stderr.write(`\r  ${FRAMES[f++ % FRAMES.length]} ${message}`) }
+  draw()
+  const timer = setInterval(draw, 120)
+  let stopped = false
+  return () => {
+    if (stopped) return
+    stopped = true
+    clearInterval(timer)
+    process.stderr.write('\r\x1b[2K')
+  }
+}
+
 /**
  * Asks `check` until it says yes, the person presses Enter, or the time is
  * up, with a one-line spinner on a terminal. Replaces "press Enter when you
