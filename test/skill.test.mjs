@@ -50,7 +50,7 @@ test('startScan is told to carry the disclosureVersion and amountCents the quote
 
 test('the skill and the README give the connector price and say the free scan is web-only (CEO Q4)', () => {
   for (const [name, text] of [['skill', SKILL], ['README', README]]) {
-    assert.match(text, /Sekura Once at \$200/, name)
+    assert.match(text, /Sekura Once at \$199/, name)
     assert.match(text, /first scan is free only when (you start it yourself|the user starts it themselves) on the website/, name)
     assert.ok(text.includes('https://sekura.ai/app/start'), name)
     for (const m of text.matchAll(/[^.\n]*free (first )?scan[^.\n]*/gi)) assert.match(m[0], /website|Never offer|about a free scan/i, `${name}: ${m[0]}`)

@@ -112,8 +112,8 @@ test('every tool has a next step; one with nothing specific gets the plain line'
 
 test('the CLI names the free scan only to say it is web-only (CEO Q4)', async () => {
   const { PRICE_LINE, FREE_LINE, ONCE_PRICE } = await import('../dist/offer.js')
-  assert.equal(ONCE_PRICE, '$200')
-  assert.match(PRICE_LINE, /Sekura Once at \$200, quoted first and started only after you agree/)
+  assert.equal(ONCE_PRICE, '$199')
+  assert.match(PRICE_LINE, /Sekura Once at \$199, quoted first and started only after you agree/)
   assert.equal(FREE_LINE, 'Your first scan is free only when you start it yourself on the website: https://sekura.ai/app/start')
   const dist = new URL('../dist/', import.meta.url)
   const files = readdirSync(dist, { recursive: true }).filter((f) => String(f).endsWith('.js'))

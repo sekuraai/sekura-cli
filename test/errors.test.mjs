@@ -35,7 +35,7 @@ test('the CLI answers an unknown command with the commands, the price and the fr
   const r = spawnSync(process.execPath, [CLI, 'scan', 'owner/repo'], { encoding: 'utf8', env: { PATH: '' } })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /Unknown command scan\. Commands: init, login, status, uninstall, logout\./)
-  assert.match(r.stderr, /Sekura Once, \$200, quoted first/)
+  assert.match(r.stderr, /Sekura Once, \$199, quoted first/)
   assert.match(r.stderr, /sekura\.ai\/app\/start/)
 })
 

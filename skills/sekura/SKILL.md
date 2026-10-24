@@ -64,7 +64,7 @@ Sekura: AI red team scans for your GitHub repositories
 
 Every scan and plan is quoted first (price and authorization) and started
 only after you say yes. Cancelling is shown first too.
-A scan started here is Sekura Once at $200. Your first scan is free only
+A scan started here is Sekura Once at $199. Your first scan is free only
 when you start it yourself on the website: https://sekura.ai/app/start
 
 Setup, in a terminal:
@@ -138,7 +138,7 @@ and stop; the scan or plan starts once they have paid on sekura.ai.
 
 ## What to tell the user
 
-- A scan started through the Sekura CLI, the MCP server or a coding tool is Sekura Once at $200; the quote gives the price, so show it as it stands. Never offer or start a free scan through this connection.
+- A scan started through the Sekura CLI, the MCP server or a coding tool is Sekura Once at $199; the quote gives the price, so show it as it stands. Never offer or start a free scan through this connection.
 - The first scan is free only when the user starts it themselves on the website, at https://sekura.ai/app/start. Say so before quoting a user's first scan, and whenever they ask about a free scan.
 - When `getAccount` says the Terms or the email are not done, or the GitHub App is not installed, give the user the sekura.ai link it names; a scan cannot start before that.
 - A scan can take a while. Offer `getScan` to check on it rather than polling in a loop.

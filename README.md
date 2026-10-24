@@ -28,7 +28,7 @@ Sekura is an AI red team as a service: it scans a GitHub repository you have gra
 
 ## What a scan costs
 
-A scan started through the Sekura CLI, the MCP server or a coding tool is **Sekura Once at $200**. It is quoted first, with the price and the authorization wording, and starts only after you agree. Your first scan is free only when you start it yourself on the website, at [sekura.ai/app/start](https://sekura.ai/app/start). A recurring plan is Sekura Always, quoted the same way.
+A scan started through the Sekura CLI, the MCP server or a coding tool is **Sekura Once at $199**. It is quoted first, with the price and the authorization wording, and starts only after you agree. Your first scan is free only when you start it yourself on the website, at [sekura.ai/app/start](https://sekura.ai/app/start). A recurring plan is Sekura Always, quoted the same way.
 
 ## Flags
 
