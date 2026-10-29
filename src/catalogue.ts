@@ -14,7 +14,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { homedir, platform } from 'node:os'
 import { join, delimiter } from 'node:path'
 
-export const ENDPOINT = 'https://sekura.ai/mcp'
+export const ENDPOINT = process.env.SEKURA_ENDPOINT?.trim() || 'https://sekura.ai/mcp'
 export const SERVER_NAME = 'sekura'
 export const DOCS = 'https://sekura.ai/connect/'
 
