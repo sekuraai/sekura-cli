@@ -17,6 +17,8 @@ import { initCommand } from './commands/init.js'
 import { statusCommand } from './commands/status.js'
 import { uninstallCommand } from './commands/uninstall.js'
 import { loginCommand, logoutCommand } from './commands/login.js'
+import { payCommand } from './commands/pay.js'
+import { billingCommand } from './commands/billing.js'
 import { DOCS } from './catalogue.js'
 
 const { version } = createRequire(import.meta.url)('../package.json') as { version: string }
@@ -31,6 +33,8 @@ program
   .addCommand(statusCommand)
   .addCommand(uninstallCommand)
   .addCommand(logoutCommand)
+  .addCommand(payCommand)
+  .addCommand(billingCommand)
 
 try {
   await program.parseAsync(process.argv)

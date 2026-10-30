@@ -50,5 +50,27 @@ export type Repositories = {
   installUrl?: string
 }
 
+export type PlanScan = { id: string; status: string }
+
+export type Plan = {
+  id: string
+  owner?: string
+  name?: string
+  plan?: string
+  status: string
+  selected?: boolean
+  pendingFrom?: string | null
+  nextRunAt?: string | null
+  lastScan?: PlanScan | null
+}
+
+export type Plans = { plans: Plan[]; dashboard?: string }
+
+export type SavedCard = { brand: string; last4: string; masked: string; isDefault: boolean }
+
+export type Billing = { card?: { brand: string; last4: string } | null; cards?: SavedCard[]; paymentMethods?: string }
+
 export const getAccount = (key: string) => callTool<Account>(key, 'getAccount')
+export const getPlans = (key: string) => callTool<Plans>(key, 'getPlans')
+export const getBilling = (key: string) => callTool<Billing>(key, 'getBilling')
 export const listRepositories = (key: string) => callTool<Repositories>(key, 'listRepositories')

@@ -68,6 +68,7 @@ only after you say yes. Cancelling is shown first too.
 Setup, in a terminal:
   npx sekura@latest login         sign in again, or pick another repository
   npx sekura@latest status        what is connected on this machine
+  npx sekura@latest billing       your saved cards (--open to change them)
 
 Add repositories: https://sekura.ai/app (the Sekura GitHub App)
 Documentation:    https://sekura.ai/connect/
@@ -112,11 +113,10 @@ A scan or a plan is never started in one call.
    authorization wording, and ask whether they agree. Start nothing until they
    have said yes in the conversation.
 3. Then call `startScan` or `startAlways` with `confirmArguments` exactly as the
-   quote returned them, plus the `payment` the user chose from the ways the quote
-   lists: `{ "savedCard": true }` for the card the quote names, or no payment for
-   a Stripe Checkout link. Never invent a `disclosureVersion` or an `amountCents`,
-   never reuse one from an older quote, and never call a confirm before the user
-   has said yes. A confirm without the `disclosureVersion` is refused.
+   quote returned them, plus the `payment` for the way the user chose to pay (see
+   Paying, below). Never invent a `disclosureVersion` or an `amountCents`, never
+   reuse one from an older quote, and never call a confirm before the user has
+   said yes. A confirm without the `disclosureVersion` is refused.
 
 If the confirm is refused because the wording or the price changed, the answer
 carries a fresh quote: show that one to the user and ask again.
@@ -129,9 +129,45 @@ they agree.
 `updateSchedule` and `runNow` take one call each and charge nothing; call them
 only when the user has asked for that change.
 
-A card is charged only after the user approves the quoted amount. If no card is
-used, the answer carries a Stripe Checkout link: give it to the user as it is
-and stop; the scan or plan starts once they have paid on sekura.ai.
+## Paying
+
+The quote's `paymentOptions` are the only ways to pay. Show them to the user as a
+numbered list, each by its `label`, in the quote's order, and ask which one they
+want together with whether they agree:
+
+- With saved cards: one line per card, masked as the quote gives it (for example
+  `Visa •••• •••• •••• 4242`), then `Pay with a Checkout link`, then
+  `Change payment method`. Never show more of a card than the quote does.
+- With no saved card: only `Pay with a Checkout link`. The first payment is
+  always made in the browser, and the card used there is saved for next time.
+
+Then:
+
+- **A saved card**: call the confirm with that option's `payment`, which is
+  `{ "savedCard": { "card": "pm_…" } }` with the card the user picked. Only that
+  card is charged, in place, with no browser. Relay the answer: what was charged
+  to which card ("Charged $199 to Visa ending 4242"), the scan id and the link.
+- **Pay with a Checkout link**: call the confirm with no `payment`. It answers 402
+  with `checkoutUrl` and `planId`. Run, in the terminal, with a timeout of ten
+  minutes:
+
+  ```
+  npx sekura@latest pay "<checkoutUrl>" --plan <planId>
+  ```
+
+  It opens the link in the user's browser (where they are signed in to Sekura)
+  and waits until the payment lands, then prints the scan id and link, or that
+  Checkout was closed unpaid. Tell the user the page is open and you are
+  waiting, then relay what it printed. If the command cannot run here, give the
+  user the link to open, and once they say they have paid, call `getPlans` and
+  report the plan and its scan.
+- **Change payment method**: starts and charges nothing. Run
+  `npx sekura@latest billing --open`, which opens the page where the user adds
+  or changes a card and waits for the change. Then call the quote again and show
+  its updated list of cards, and ask again.
+
+Nothing is charged without a quote and the user's yes, and only the card the user
+picked is charged.
 
 ## What to tell the user
 

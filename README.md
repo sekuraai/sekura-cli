@@ -28,6 +28,16 @@ Sekura is an AI red team as a service: it scans a GitHub repository you have gra
 
 Every scan you then ask for in your coding tool is quoted first, with the price and the authorization wording, and starts only after you agree.
 
+## Paying from your coding tool
+
+The quote lists how you can pay:
+
+- **A saved card**, shown only by brand and last four (`Visa •••• •••• •••• 4242`). Pick one and it is charged right there, with no browser: `Charged $199 to Visa ending 4242`, then the scan id and link.
+- **Pay with a Checkout link.** The agent runs `npx sekura@latest pay "<link>" --plan <id>`, which opens Stripe Checkout in your default browser and waits. When the payment lands, the same session shows the scan id and link. Your first payment is always made this way, and the card you use is saved for next time.
+- **Change payment method.** The agent runs `npx sekura@latest billing --open`, which opens the page where you add or change a card, then shows the updated list.
+
+Nothing is charged without a quote and your yes, and only the card you pick is charged.
+
 ## Flags
 
 | Flag | What it does |
@@ -53,9 +63,12 @@ npx sekura@latest init --no-login       # no sign-in here; each tool signs in on
 npx sekura@latest init --device         # sign in with a code, for a terminal on another machine
 npx sekura@latest login                 # sign in again, give connected tools the key, pick a repository
 npx sekura@latest status                # what is connected, and who is signed in
+npx sekura@latest billing               # your saved cards, masked; --open to change them
+npx sekura@latest pay "<checkout link>" --plan <id>   # open Checkout and wait for the payment
 npx sekura@latest logout                # forget the saved key
 npx sekura@latest uninstall             # remove the entries, the skill, the guidance block and the saved key
 SEKURA_API_KEY=sek_live_… npx sekura@latest init --yes   # unattended, with a key from Settings
+SEKURA_ENDPOINT=https://dev.sekura.ai/mcp npx sekura@latest billing   # against another Sekura server, for testing
 ```
 
 ## What it writes
